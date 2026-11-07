@@ -737,7 +737,7 @@ function getResizeHandles(el) {
   const y = el.y;
   const w = el.width;
   const h = el.height;
-  return [
+  const rawHandles = [
     { handle: 'nw', x: x, y: y },
     { handle: 'n',  x: x + w / 2, y: y },
     { handle: 'ne', x: x + w, y: y },
@@ -747,6 +747,24 @@ function getResizeHandles(el) {
     { handle: 'sw', x: x, y: y + h },
     { handle: 'w',  x: x, y: y + h / 2 }
   ];
+
+  if (!el.rotation) return rawHandles;
+
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const rad = el.rotation * (Math.PI / 180);
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+
+  return rawHandles.map(h => {
+    const dx = h.x - cx;
+    const dy = h.y - cy;
+    return {
+      handle: h.handle,
+      x: cx + (dx * cos - dy * sin),
+      y: cy + (dx * sin + dy * cos)
+    };
+  });
 }
 
 function getHandleUnderPoint(pt, el) {
@@ -900,9 +918,18 @@ function setupFloorplan() {
     const hitHandle = selectedElement ? getHandleUnderPoint(pt, selectedElement) : null;
     const hitElement = findElementUnderPoint(pt);
 
-    if (hitHandle || hitElement) {
+    if (hitHandle || (hitElement && hitElement.type !== 'room')) {
       e.preventDefault();
       handleCanvasMouseDown(e);
+    } else if (hitElement && hitElement.type === 'room') {
+      // Raum auf Touchscreen nur auswählen, aber Touchmove soll die Ansicht verschieben (Pan)
+      selectedElement = hitElement;
+      updateInspector();
+      renderCanvas();
+      const rect = canvas.getBoundingClientRect();
+      isPanning = true;
+      panStartX = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
+      panStartY = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
     } else {
       // Leerer Bereich berührt => Pan
       const rect = canvas.getBoundingClientRect();
@@ -1014,42 +1041,81 @@ function getRoomBadgeRect(room) {
   return { x: bx, y: by, width: badgeW, height: badgeH, titleText, subText };
 }
 
+// Präzise Prüfung, ob ein Punkt (pt) innerhalb eines Elements liegt (inkl. Drehung und Berücksichtigung von Touch/Klick-Toleranz)
+function isPointInElement(pt, el) {
+  if (el.type === 'plant') {
+    const dist = Math.hypot(el.x - pt.x, el.y - pt.y);
+    const tol = Math.max(18, Math.round(24 / canvasZoom));
+    return dist <= ((el.radius || 20) + tol);
+  }
+
+  const cx = el.x + el.width / 2;
+  const cy = el.y + el.height / 2;
+  let checkX = pt.x;
+  let checkY = pt.y;
+
+  if (el.rotation) {
+    const rad = -el.rotation * (Math.PI / 180);
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const dx = pt.x - cx;
+    const dy = pt.y - cy;
+    checkX = cx + (dx * cos - dy * sin);
+    checkY = cy + (dx * sin + dy * cos);
+  }
+
+  // Großzügige Klicktoleranz (mindestens 18-26px je nach Zoom)
+  const tol = Math.max(16, Math.round(22 / canvasZoom));
+  const tolX = Math.max(tol, (el.width <= 32 ? 26 : 12));
+  const tolY = Math.max(tol, (el.height <= 32 ? 26 : 12));
+
+  return (
+    checkX >= el.x - tolX &&
+    checkX <= el.x + el.width + tolX &&
+    checkY >= el.y - tolY &&
+    checkY <= el.y + el.height + tolY
+  );
+}
+
 function findElementUnderPoint(pt) {
   const elements = appData.floors[currentFloor] || [];
-  
-  // 1. Zuerst kleine / spezifische Elemente prüfen: Fenster, Türen, Möbel, Wände, Pflanzen
-  // Wir geben Fenstern und schmalen Elementen eine großzügige Trefferzone (mindestens 24px),
-  // damit man sie auch auf Touchscreens oder großen Räumen problemlos antippen und bewegen kann!
+
+  // TIER 1: Pflanzen, Möbel (Waschtisch, Couch, Tisch, WC etc.), Türen, Fenster, Trennwände
+  // Höchste Priorität! Objekte, die auf dem Boden stehen, müssen IMMER vor dem Raum gegriffen werden.
   for (let i = elements.length - 1; i >= 0; i--) {
     const el = elements[i];
     if (el.type === 'room') continue;
+    if (el.subType === 'fliesen_zone' || el.subType === 'teppich_insel') continue;
 
-    if (el.type === 'plant') {
-      const dist = Math.hypot(el.x - pt.x, el.y - pt.y);
-      if (dist <= el.radius + 15) return el;
-    } else {
-      const tolX = Math.max(16, (el.width <= 32 ? 24 : 8));
-      const tolY = Math.max(16, (el.height <= 32 ? 24 : 8));
-      if (pt.x >= el.x - tolX && pt.x <= el.x + el.width + tolX &&
-          pt.y >= el.y - tolY && pt.y <= el.y + el.height + tolY) {
+    if (isPointInElement(pt, el)) {
+      return el;
+    }
+  }
+
+  // TIER 2: Teppiche & Küchenfliesen-Zonen (liegen auf dem Raum, aber unter Möbeln)
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const el = elements[i];
+    if (el.subType === 'fliesen_zone' || el.subType === 'teppich_insel') {
+      if (isPointInElement(pt, el)) return el;
+    }
+  }
+
+  // TIER 3: Raum-Beschriftungs-Plaketten
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const el = elements[i];
+    if (el.type === 'room' && el.badgePos !== 'hidden') {
+      const bRect = getRoomBadgeRect(el);
+      if (pt.x >= bRect.x && pt.x <= bRect.x + bRect.width &&
+          pt.y >= bRect.y && pt.y <= bRect.y + bRect.height) {
         return el;
       }
     }
   }
 
-  // 2. Falls kein Objekt angeklickt wurde: Räume & Raum-Plaketten prüfen
+  // TIER 4: Raum-Bodenfläche (wird nur ausgewählt, aber nicht versehentlich verschoben)
   for (let i = elements.length - 1; i >= 0; i--) {
     const el = elements[i];
     if (el.type === 'room') {
-      // Prüfen ob die Plakette (außerhalb oder innerhalb) angeklickt wurde
-      if (el.badgePos !== 'hidden') {
-        const bRect = getRoomBadgeRect(el);
-        if (pt.x >= bRect.x && pt.x <= bRect.x + bRect.width &&
-            pt.y >= bRect.y && pt.y <= bRect.y + bRect.height) {
-          return el;
-        }
-      }
-      // Prüfen ob die Raumfläche angeklickt wurde
       if (pt.x >= el.x && pt.x <= el.x + el.width && pt.y >= el.y && pt.y <= el.y + el.height) {
         return el;
       }
@@ -1075,6 +1141,9 @@ function setupCatalogItems() {
       const isWindow = (type === 'fenster' || type === 'fenster_gross');
       const isDoor = (type === 'tuer');
 
+      const viewCenterX = Math.round((-panX + canvas.width / 2) / canvasZoom);
+      const viewCenterY = Math.round((-panY + canvas.height / 2) / canvasZoom);
+
       const targetRoom = (selectedElement && selectedElement.type === 'room')
         ? selectedElement
         : (appData.floors[currentFloor] || []).find(el => el.type === 'room');
@@ -1083,14 +1152,20 @@ function setupCatalogItems() {
         // Am oberen Rand (Nordwand) des Raumes andocken
         spawnX = Math.round(targetRoom.x + (targetRoom.width - w) / 2);
         spawnY = Math.round(targetRoom.y - h / 2);
-      } else if (targetRoom && !type.startsWith('pflanze_') && type !== 'wand_h' && type !== 'wand_v') {
-        // Möbel zentriert im Raum platzieren
-        spawnX = Math.round(targetRoom.x + (targetRoom.width - w) / 2);
-        spawnY = Math.round(targetRoom.y + (targetRoom.height - h) / 2);
+      } else if (targetRoom && type !== 'wand_h' && type !== 'wand_v') {
+        if (type.startsWith('pflanze_')) {
+          // Pflanzen harmonisch im Raum platzieren
+          spawnX = Math.round(targetRoom.x + targetRoom.width * 0.7 - w / 2);
+          spawnY = Math.round(targetRoom.y + targetRoom.height * 0.3 - h / 2);
+        } else {
+          // Möbel zentriert im Raum platzieren
+          spawnX = Math.round(targetRoom.x + (targetRoom.width - w) / 2);
+          spawnY = Math.round(targetRoom.y + (targetRoom.height - h) / 2);
+        }
       } else {
-        // In der Mitte des sichtbaren Canvas platzieren
-        spawnX = Math.round((canvas.width / 2) - (w / 2));
-        spawnY = Math.round((canvas.height / 2) - (h / 2));
+        // Im aktuellen sichtbaren Bildbereich platzieren!
+        spawnX = viewCenterX - Math.round(w / 2);
+        spawnY = viewCenterY - Math.round(h / 2);
       }
 
       let newElement = null;
@@ -1373,6 +1448,13 @@ function handleCanvasMouseMove(evt) {
     ctx.restore();
 
   } else if (isDrawing && selectedElement && !activeResizeHandle) {
+    if (selectedElement.type === 'room') {
+      // WICHTIG: Raum-Bodenfläche wird beim Ziehen NICHT verschoben!
+      // Das schützt die gesamte Raumaufteilung und verhindert, dass man
+      // versehentlich den Raum verschiebt, wenn man Möbel oder Pflanzen greift.
+      return;
+    }
+
     // Ganzes Element verschieben (flüssig ohne DOM-Neuaufbau während der Mausbewegung)
     const dx = pt.x - dragStartX;
     const dy = pt.y - dragStartY;
@@ -1381,10 +1463,6 @@ function handleCanvasMouseMove(evt) {
 
     selectedElement.x += dx;
     selectedElement.y += dy;
-    if (selectedElement.type === 'room' && selectedElement.badgeCustomX !== undefined) {
-      selectedElement.badgeCustomX += dx;
-      selectedElement.badgeCustomY += dy;
-    }
     renderCanvas();
   }
 }
@@ -1433,14 +1511,28 @@ function handleCanvasMouseDown(evt) {
   if (clickedEl) {
     selectedElement = clickedEl;
     activeResizeHandle = null;
-    isDrawing = true;
-    dragStartX = pt.x;
-    dragStartY = pt.y;
 
     // Wenn ein Element angeklickt wird, immer in den Auswahl- & Verschieben-Modus schalten
     if (currentTool !== 'select' && window.switchTool) {
       window.switchTool('select');
     }
+
+    if (clickedEl.type === 'room') {
+      // Raum-Boden angeklickt => Raum wird ausgewählt, aber Ziehen auf dem Boden
+      // verschiebt den Raum NICHT, sondern verschiebt die Ansicht (Pan) oder tut nichts!
+      isDrawing = false;
+      const rect = canvas.getBoundingClientRect();
+      const clientX = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientX : evt.clientX;
+      const clientY = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientY : evt.clientY;
+      isPanning = true;
+      panStartX = (clientX - rect.left) * (canvas.width / rect.width);
+      panStartY = (clientY - rect.top) * (canvas.height / rect.height);
+    } else {
+      isDrawing = true;
+      dragStartX = pt.x;
+      dragStartY = pt.y;
+    }
+
     updateInspector();
     renderCanvas();
     return;

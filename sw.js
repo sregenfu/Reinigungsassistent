@@ -1,5 +1,5 @@
 // Service Worker für CleanHome PWA (Offline-Unterstützung)
-const CACHE_NAME = 'cleanhome-pwa-v4';
+const CACHE_NAME = 'cleanhome-pwa-v5';
 const ASSETS = [
   './',
   './index.html',

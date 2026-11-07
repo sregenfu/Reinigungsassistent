@@ -641,7 +641,7 @@ function setupTaskForm() {
 const canvas = document.getElementById('floorCanvas');
 const ctx = canvas.getContext('2d');
 
-let currentTool = 'select'; // 'select' | 'room'
+let currentTool = 'select'; // 'select' | 'room' | 'wall'
 let selectedElement = null;
 let isDrawing = false;
 let startX = 0;
@@ -649,9 +649,75 @@ let startY = 0;
 let dragStartX = 0;
 let dragStartY = 0;
 
+// 2D Zoom & Pan Zustand
+let canvasZoom = 1.0;
+let panX = 0;
+let panY = 0;
+let isPanning = false;
+let panStartX = 0;
+let panStartY = 0;
+
 // Resize Handles für Umriss-Änderung: 8 Punkte (NW, N, NE, E, SE, S, SW, W)
 let activeResizeHandle = null;
-const HANDLE_SIZE = 8;
+const HANDLE_SIZE = 10;
+
+function setCanvasZoom(newZoom, pivotX, pivotY) {
+  const oldZoom = canvasZoom;
+  const clamped = Math.max(0.4, Math.min(3.5, newZoom));
+  if (Math.abs(clamped - oldZoom) < 0.001) return;
+
+  const pX = (pivotX !== undefined) ? pivotX : canvas.width / 2;
+  const pY = (pivotY !== undefined) ? pivotY : canvas.height / 2;
+
+  panX = pX - ((pX - panX) * (clamped / oldZoom));
+  panY = pY - ((pY - panY) * (clamped / oldZoom));
+  canvasZoom = clamped;
+
+  const zoomValEl = document.getElementById('canvas-zoom-val');
+  if (zoomValEl) zoomValEl.textContent = Math.round(canvasZoom * 100) + '%';
+
+  const scaleInfoEl = document.getElementById('canvas-scale-info');
+  if (scaleInfoEl) scaleInfoEl.textContent = `1 m = ${Math.round(PIXELS_PER_METER * canvasZoom)} px`;
+
+  renderCanvas();
+}
+
+function zoomToFit() {
+  const elements = appData.floors[currentFloor] || [];
+  if (elements.length === 0) {
+    canvasZoom = 1.0;
+    panX = 0;
+    panY = 0;
+    const zoomValEl = document.getElementById('canvas-zoom-val');
+    if (zoomValEl) zoomValEl.textContent = '100%';
+    renderCanvas();
+    return;
+  }
+  let minX = 99999, maxX = -99999, minY = 99999, maxY = -99999;
+  elements.forEach(el => {
+    minX = Math.min(minX, el.x);
+    maxX = Math.max(maxX, el.x + (el.width || (el.radius || 20) * 2));
+    minY = Math.min(minY, el.y);
+    maxY = Math.max(maxY, el.y + (el.height || (el.radius || 20) * 2));
+  });
+
+  const contentW = Math.max(100, maxX - minX + 120);
+  const contentH = Math.max(100, maxY - minY + 120);
+
+  const scale = Math.min((canvas.width * 0.9) / contentW, (canvas.height * 0.9) / contentH);
+  canvasZoom = Math.max(0.4, Math.min(2.5, scale));
+  
+  const midX = (minX + maxX) / 2;
+  const midY = (minY + maxY) / 2;
+  panX = canvas.width / 2 - midX * canvasZoom;
+  panY = canvas.height / 2 - midY * canvasZoom;
+
+  const zoomValEl = document.getElementById('canvas-zoom-val');
+  if (zoomValEl) zoomValEl.textContent = Math.round(canvasZoom * 100) + '%';
+  const scaleInfoEl = document.getElementById('canvas-scale-info');
+  if (scaleInfoEl) scaleInfoEl.textContent = `1 m = ${Math.round(PIXELS_PER_METER * canvasZoom)} px`;
+  renderCanvas();
+}
 
 function getResizeHandles(el) {
   if (!el || el.type === 'plant') return [];
@@ -673,8 +739,9 @@ function getResizeHandles(el) {
 
 function getHandleUnderPoint(pt, el) {
   const handles = getResizeHandles(el);
+  const tol = Math.max(12, 16 / canvasZoom);
   for (const h of handles) {
-    if (Math.abs(pt.x - h.x) <= HANDLE_SIZE && Math.abs(pt.y - h.y) <= HANDLE_SIZE) {
+    if (Math.abs(pt.x - h.x) <= tol && Math.abs(pt.y - h.y) <= tol) {
       return h.handle;
     }
   }
@@ -705,12 +772,12 @@ function setupFloorplan() {
     });
   });
 
-  // Tool Selector
+  // Tool Selector & Switcher
   const toolBtns = document.querySelectorAll('.btn-tool');
   const surfaceGroup = document.getElementById('surface-selector-group');
   const bannerLeft = document.querySelector('.canvas-banner-left');
 
-  function updateToolBanner(tool) {
+  window.updateToolBanner = function(tool) {
     if (!bannerLeft) return;
     const banner = bannerLeft.parentElement;
     if (tool === 'room') {
@@ -721,17 +788,24 @@ function setupFloorplan() {
       bannerLeft.innerHTML = '<span>🧱 <strong>Wand einziehen:</strong> Klicke und ziehe eine Trennwand mit der Maus. Sie rastet automatisch gerade ein.</span>';
     } else {
       banner.classList.remove('drawing-active');
-      bannerLeft.innerHTML = '<span>💡 <strong>Auswahl & Skalieren:</strong> Klicke ein Element an, um es zu verschieben oder die m² zu ändern. An den 8 Eckpunkten kannst du den Umriss verziehen.</span>';
+      bannerLeft.innerHTML = '<span>💡 <strong>Auswahl & Bewegen:</strong> Klicke ein Element an, um es zu verschieben oder die Maße anzupassen. An den 8 blauen Punkten kannst du den Umriss verziehen.</span>';
     }
-  }
+  };
+
+  window.switchTool = function(toolName) {
+    currentTool = toolName;
+    document.querySelectorAll('.btn-tool').forEach(b => {
+      b.classList.toggle('active', b.dataset.tool === toolName);
+    });
+    if (surfaceGroup) {
+      surfaceGroup.style.display = currentTool === 'room' ? 'flex' : 'none';
+    }
+    window.updateToolBanner(toolName);
+  };
 
   toolBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      toolBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentTool = btn.dataset.tool;
-      surfaceGroup.style.display = currentTool === 'room' ? 'flex' : 'none';
-      updateToolBanner(currentTool);
+      window.switchTool(btn.dataset.tool);
     });
   });
 
@@ -747,14 +821,58 @@ function setupFloorplan() {
     if (btnGotHelp) btnGotHelp.addEventListener('click', () => modalHelp.style.display = 'none');
   }
 
-  // Canvas Mouse & Touch Events (iPhone / iPad / Finger / Apple Pencil)
+  // 2D Zoom-Buttons
+  const btnZoomIn = document.getElementById('btn-zoom-in');
+  const btnZoomOut = document.getElementById('btn-zoom-out');
+  const btnZoomReset = document.getElementById('btn-zoom-reset');
+  const btnZoomFit = document.getElementById('btn-zoom-fit');
+
+  if (btnZoomIn) btnZoomIn.addEventListener('click', () => setCanvasZoom(canvasZoom * 1.25));
+  if (btnZoomOut) btnZoomOut.addEventListener('click', () => setCanvasZoom(canvasZoom / 1.25));
+  if (btnZoomReset) btnZoomReset.addEventListener('click', () => {
+    canvasZoom = 1.0;
+    panX = 0;
+    panY = 0;
+    const zoomValEl = document.getElementById('canvas-zoom-val');
+    if (zoomValEl) zoomValEl.textContent = '100%';
+    const scaleInfoEl = document.getElementById('canvas-scale-info');
+    if (scaleInfoEl) scaleInfoEl.textContent = `1 m = ${Math.round(PIXELS_PER_METER)} px`;
+    renderCanvas();
+  });
+  if (btnZoomFit) btnZoomFit.addEventListener('click', zoomToFit);
+
+  // Mausrad-Zoom im Canvas
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const pivotX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const pivotY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const delta = e.deltaY < 0 ? 1.15 : 0.87;
+    setCanvasZoom(canvasZoom * delta, pivotX, pivotY);
+  }, { passive: false });
+
+  // Canvas Mouse & Touch Events
   canvas.addEventListener('mousemove', handleCanvasMouseMove);
   canvas.addEventListener('mousedown', handleCanvasMouseDown);
   window.addEventListener('mouseup', handleCanvasMouseUp);
 
-  // Intelligente Touch-Events: Scrollen auf Mobilgeräten wird NICHT blockiert,
-  // es sei denn, der Nutzer zeichnet aktiv einen Raum/Wand oder zieht einen Griff/Möbelstück!
+  let touchStartDistance = 0;
+  let touchStartZoom = 1.0;
+  let isPinching = false;
+
   canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      isPinching = true;
+      isDrawing = false;
+      isPanning = false;
+      touchStartDistance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      touchStartZoom = canvasZoom;
+      return;
+    }
+
     if (currentTool === 'room' || currentTool === 'wall') {
       e.preventDefault();
       handleCanvasMouseDown(e);
@@ -763,32 +881,47 @@ function setupFloorplan() {
 
     const pt = getCanvasPoint(e);
     const hitHandle = selectedElement ? getHandleUnderPoint(pt, selectedElement) : null;
-    let hitElement = null;
-    const elements = appData.floors[currentFloor] || [];
-    for (let i = elements.length - 1; i >= 0; i--) {
-      const el = elements[i];
-      if (el.type === 'plant') {
-        if (Math.hypot(el.x - pt.x, el.y - pt.y) <= el.radius + 6) { hitElement = el; break; }
-      } else {
-        if (pt.x >= el.x && pt.x <= el.x + el.width && pt.y >= el.y && pt.y <= el.y + el.height) { hitElement = el; break; }
-      }
-    }
+    const hitElement = findElementUnderPoint(pt);
 
     if (hitHandle || hitElement) {
       e.preventDefault();
       handleCanvasMouseDown(e);
+    } else {
+      // Leerer Bereich berührt => Pan
+      const rect = canvas.getBoundingClientRect();
+      isPanning = true;
+      panStartX = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
+      panStartY = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
     }
   }, { passive: false });
 
   canvas.addEventListener('touchmove', (e) => {
-    if (isDrawing || activeResizeHandle) {
+    if (isPinching && e.touches.length === 2) {
+      e.preventDefault();
+      const curDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      if (touchStartDistance > 0) {
+        const rect = canvas.getBoundingClientRect();
+        const midX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) * (canvas.width / rect.width);
+        const midY = ((e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top) * (canvas.height / rect.height);
+        setCanvasZoom(touchStartZoom * (curDist / touchStartDistance), midX, midY);
+      }
+      return;
+    }
+
+    if (isDrawing || activeResizeHandle || isPanning) {
       e.preventDefault();
       handleCanvasMouseMove(e);
     }
   }, { passive: false });
 
   window.addEventListener('touchend', (e) => {
-    if (isDrawing) {
+    if (e.touches.length < 2) {
+      isPinching = false;
+    }
+    if (isDrawing || isPanning) {
       handleCanvasMouseUp(e);
     }
   });
@@ -825,6 +958,42 @@ function setupFloorplan() {
   });
 }
 
+function findElementUnderPoint(pt) {
+  const elements = appData.floors[currentFloor] || [];
+  
+  // 1. Zuerst kleine / spezifische Elemente prüfen: Fenster, Türen, Möbel, Wände, Pflanzen
+  // Wir geben Fenstern und schmalen Elementen eine großzügige Trefferzone (mindestens 24px),
+  // damit man sie auch auf Touchscreens oder großen Räumen problemlos antippen und bewegen kann!
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const el = elements[i];
+    if (el.type === 'room') continue;
+
+    if (el.type === 'plant') {
+      const dist = Math.hypot(el.x - pt.x, el.y - pt.y);
+      if (dist <= el.radius + 15) return el;
+    } else {
+      const tolX = Math.max(16, (el.width <= 32 ? 24 : 8));
+      const tolY = Math.max(16, (el.height <= 32 ? 24 : 8));
+      if (pt.x >= el.x - tolX && pt.x <= el.x + el.width + tolX &&
+          pt.y >= el.y - tolY && pt.y <= el.y + el.height + tolY) {
+        return el;
+      }
+    }
+  }
+
+  // 2. Falls kein Objekt angeklickt wurde: Räume prüfen
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const el = elements[i];
+    if (el.type === 'room') {
+      if (pt.x >= el.x && pt.x <= el.x + el.width && pt.y >= el.y && pt.y <= el.y + el.height) {
+        return el;
+      }
+    }
+  }
+
+  return null;
+}
+
 // Auswahlpool Initialisierung
 function setupCatalogItems() {
   const items = document.querySelectorAll('.catalog-item');
@@ -835,9 +1004,29 @@ function setupCatalogItems() {
       const w = parseInt(item.dataset.w, 10) || 120;
       const h = parseInt(item.dataset.h, 10) || 80;
 
-      // In der Mitte des Canvas platzieren
-      const spawnX = Math.round((canvas.width / 2) - (w / 2));
-      const spawnY = Math.round((canvas.height / 2) - (h / 2));
+      // Intelligenten Platzierungspunkt berechnen:
+      // Falls ein Raum vorhanden/ausgewählt ist, platziere Fenster direkt an der Wand!
+      let spawnX, spawnY;
+      const isWindow = (type === 'fenster' || type === 'fenster_gross');
+      const isDoor = (type === 'tuer');
+
+      const targetRoom = (selectedElement && selectedElement.type === 'room')
+        ? selectedElement
+        : (appData.floors[currentFloor] || []).find(el => el.type === 'room');
+
+      if ((isWindow || isDoor) && targetRoom) {
+        // Am oberen Rand (Nordwand) des Raumes andocken
+        spawnX = Math.round(targetRoom.x + (targetRoom.width - w) / 2);
+        spawnY = Math.round(targetRoom.y - h / 2);
+      } else if (targetRoom && !type.startsWith('pflanze_') && type !== 'wand_h' && type !== 'wand_v') {
+        // Möbel zentriert im Raum platzieren
+        spawnX = Math.round(targetRoom.x + (targetRoom.width - w) / 2);
+        spawnY = Math.round(targetRoom.y + (targetRoom.height - h) / 2);
+      } else {
+        // In der Mitte des sichtbaren Canvas platzieren
+        spawnX = Math.round((canvas.width / 2) - (w / 2));
+        spawnY = Math.round((canvas.height / 2) - (h / 2));
+      }
 
       let newElement = null;
       if (type.startsWith('pflanze_')) {
@@ -892,6 +1081,14 @@ function setupCatalogItems() {
       appData.floors[currentFloor].push(newElement);
       selectedElement = newElement;
 
+      // WICHTIG: Sofort auf das "Auswählen & Bewegen"-Werkzeug umschalten,
+      // damit der Benutzer das neue Fenster/Möbelstück direkt greifen und verschieben kann!
+      if (window.switchTool) {
+        window.switchTool('select');
+      } else {
+        currentTool = 'select';
+      }
+
       saveData();
       updateInspector();
       if (activeViewMode === '3d') {
@@ -912,17 +1109,35 @@ function getCanvasPoint(evt) {
   const clientX = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientX : evt.clientX;
   const clientY = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientY : evt.clientY;
 
+  const rawX = (clientX - rect.left) * scaleX;
+  const rawY = (clientY - rect.top) * scaleY;
+
   return {
-    x: Math.round((clientX - rect.left) * scaleX),
-    y: Math.round((clientY - rect.top) * scaleY)
+    x: Math.round((rawX - panX) / canvasZoom),
+    y: Math.round((rawY - panY) / canvasZoom)
   };
 }
 
 function handleCanvasMouseMove(evt) {
+  const rect = canvas.getBoundingClientRect();
+  const clientX = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientX : evt.clientX;
+  const clientY = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientY : evt.clientY;
+  const rawX = (clientX - rect.left) * (canvas.width / rect.width);
+  const rawY = (clientY - rect.top) * (canvas.height / rect.height);
+
+  if (isPanning) {
+    panX += (rawX - panStartX);
+    panY += (rawY - panStartY);
+    panStartX = rawX;
+    panStartY = rawY;
+    renderCanvas();
+    return;
+  }
+
   const pt = getCanvasPoint(evt);
   const meterX = (pt.x / PIXELS_PER_METER).toFixed(1);
   const meterY = (pt.y / PIXELS_PER_METER).toFixed(1);
-  document.getElementById('canvas-coords').textContent = `X: ${meterX} m (${pt.x}px), Y: ${meterY} m (${pt.y}px)`;
+  document.getElementById('canvas-coords').textContent = `X: ${meterX} m, Y: ${meterY} m`;
 
   // Cursor anpassen falls über Resize-Handle
   if (selectedElement && !isDrawing) {
@@ -933,7 +1148,7 @@ function handleCanvasMouseMove(evt) {
       else if (handle === 'n' || handle === 's') canvas.style.cursor = 'ns-resize';
       else if (handle === 'e' || handle === 'w') canvas.style.cursor = 'ew-resize';
     } else {
-      canvas.style.cursor = currentTool === 'room' ? 'crosshair' : 'default';
+      canvas.style.cursor = currentTool === 'room' || currentTool === 'wall' ? 'crosshair' : 'default';
     }
   }
 
@@ -945,7 +1160,7 @@ function handleCanvasMouseMove(evt) {
     dragStartY = pt.y;
 
     const el = selectedElement;
-    const minSize = 20;
+    const minSize = 14;
 
     if (activeResizeHandle.includes('e')) {
       el.width = Math.max(minSize, el.width + dx);
@@ -982,16 +1197,18 @@ function handleCanvasMouseMove(evt) {
     const m2 = calculateAreaM2(Math.abs(w), Math.abs(h));
 
     ctx.save();
-    ctx.strokeStyle = '#2563eb';
-    ctx.lineWidth = 2;
+    ctx.translate(panX, panY);
+    ctx.scale(canvasZoom, canvasZoom);
+    ctx.strokeStyle = '#8c7355';
+    ctx.lineWidth = 2 / canvasZoom;
     ctx.setLineDash([6, 4]);
-    ctx.fillStyle = 'rgba(37, 99, 235, 0.15)';
+    ctx.fillStyle = 'rgba(140, 115, 85, 0.15)';
     ctx.fillRect(startX, startY, w, h);
     ctx.strokeRect(startX, startY, w, h);
 
     // Live m² Tooltip
-    ctx.fillStyle = '#1e3a8a';
-    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#2d2823';
+    ctx.font = 'bold 13px sans-serif';
     ctx.fillText(`${(Math.abs(w)/PIXELS_PER_METER).toFixed(1)}m × ${(Math.abs(h)/PIXELS_PER_METER).toFixed(1)}m = ${m2} m²`, pt.x + 10, pt.y - 10);
     ctx.restore();
 
@@ -1000,10 +1217,11 @@ function handleCanvasMouseMove(evt) {
     const w = pt.x - startX;
     const h = pt.y - startY;
     ctx.save();
+    ctx.translate(panX, panY);
+    ctx.scale(canvasZoom, canvasZoom);
     ctx.fillStyle = 'rgba(51, 65, 85, 0.7)';
     ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 2;
-    // Wandstärke mindestens 12px
+    ctx.lineWidth = 2 / canvasZoom;
     const drawW = Math.abs(w) > Math.abs(h) ? w : (w >= 0 ? 14 : -14);
     const drawH = Math.abs(w) > Math.abs(h) ? (h >= 0 ? 14 : -14) : h;
     ctx.fillRect(startX, startY, drawW, drawH);
@@ -1019,13 +1237,13 @@ function handleCanvasMouseMove(evt) {
 
     selectedElement.x += dx;
     selectedElement.y += dy;
+    updateInspector();
     renderCanvas();
   }
 }
 
 function handleCanvasMouseDown(evt) {
   const pt = getCanvasPoint(evt);
-  const elements = appData.floors[currentFloor] || [];
 
   if (currentTool === 'select') {
     // 1. Zuerst prüfen, ob ein Resize-Handle des aktiven Elements geklickt wurde
@@ -1040,30 +1258,22 @@ function handleCanvasMouseDown(evt) {
       }
     }
 
-    // 2. Element auswählen (von oben nach unten prüfen)
-    selectedElement = null;
+    // 2. Element auswählen (präzise Trefferzone für Fenster, Möbel, Wände)
+    selectedElement = findElementUnderPoint(pt);
     activeResizeHandle = null;
-
-    for (let i = elements.length - 1; i >= 0; i--) {
-      const el = elements[i];
-      if (el.type === 'plant') {
-        const dist = Math.hypot(el.x - pt.x, el.y - pt.y);
-        if (dist <= el.radius + 6) {
-          selectedElement = el;
-          break;
-        }
-      } else {
-        if (pt.x >= el.x && pt.x <= el.x + el.width && pt.y >= el.y && pt.y <= el.y + el.height) {
-          selectedElement = el;
-          break;
-        }
-      }
-    }
 
     if (selectedElement) {
       isDrawing = true;
       dragStartX = pt.x;
       dragStartY = pt.y;
+    } else {
+      // Kein Element getroffen => Canvas verschieben (Pan)
+      const rect = canvas.getBoundingClientRect();
+      const clientX = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientX : evt.clientX;
+      const clientY = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientY : evt.clientY;
+      isPanning = true;
+      panStartX = (clientX - rect.left) * (canvas.width / rect.width);
+      panStartY = (clientY - rect.top) * (canvas.height / rect.height);
     }
     updateInspector();
     renderCanvas();
@@ -1076,6 +1286,10 @@ function handleCanvasMouseDown(evt) {
 }
 
 function handleCanvasMouseUp(evt) {
+  if (isPanning) {
+    isPanning = false;
+    return;
+  }
   if (!isDrawing) return;
   isDrawing = false;
   activeResizeHandle = null;
@@ -2109,19 +2323,29 @@ function drawDetailedPlant(ctx, el) {
   ctx.restore();
 }
 
-// Haupt-Renderfunktion für 2D Canvas
+// Haupt-Renderfunktion für 2D Canvas mit Zoom, Pan & klar lesbaren Bemaßungen
 function renderCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Feines Konstruktions-Raster (40px = 1 Meter)
   ctx.save();
-  ctx.strokeStyle = '#f1f5f9';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < canvas.width; x += PIXELS_PER_METER) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  ctx.translate(panX, panY);
+  ctx.scale(canvasZoom, canvasZoom);
+
+  // Feines Konstruktions-Raster (40px = 1 Meter) passend zu Zoom & Pan
+  ctx.save();
+  ctx.strokeStyle = '#f1ece4';
+  ctx.lineWidth = Math.max(0.5, 1 / canvasZoom);
+
+  const startGridX = Math.floor((-panX / canvasZoom) / PIXELS_PER_METER) * PIXELS_PER_METER - PIXELS_PER_METER * 4;
+  const endGridX = startGridX + Math.ceil(canvas.width / canvasZoom) + PIXELS_PER_METER * 8;
+  const startGridY = Math.floor((-panY / canvasZoom) / PIXELS_PER_METER) * PIXELS_PER_METER - PIXELS_PER_METER * 4;
+  const endGridY = startGridY + Math.ceil(canvas.height / canvasZoom) + PIXELS_PER_METER * 8;
+
+  for (let x = startGridX; x <= endGridX; x += PIXELS_PER_METER) {
+    ctx.beginPath(); ctx.moveTo(x, startGridY); ctx.lineTo(x, endGridY); ctx.stroke();
   }
-  for (let y = 0; y < canvas.height; y += PIXELS_PER_METER) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  for (let y = startGridY; y <= endGridY; y += PIXELS_PER_METER) {
+    ctx.beginPath(); ctx.moveTo(startGridX, y); ctx.lineTo(endGridX, y); ctx.stroke();
   }
   ctx.restore();
 
@@ -2133,22 +2357,74 @@ function renderCanvas() {
 
     // Raum-Außenwände (Solide Mauerstärke)
     ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = Math.max(2, 3 / canvasZoom);
     ctx.strokeRect(room.x, room.y, room.width, room.height);
 
-    // Raum-Beschriftung & m²
+    // Raum-Beschriftung & m² in einem klaren, kontrastreichen Plaketten-Hintergrund (immer perfekt lesbar!)
     const m2 = room.areaM2 || calculateAreaM2(room.width, room.height);
     const wM = (room.width / PIXELS_PER_METER).toFixed(1);
     const hM = (room.height / PIXELS_PER_METER).toFixed(1);
 
-    ctx.fillStyle = '#0f172a';
+    const titleText = `${room.name}`;
+    const subText = `${m2} m² (${wM} m × ${hM} m) • ${room.surface.toUpperCase()}`;
+
+    ctx.save();
+    ctx.font = 'bold 13px "Plus Jakarta Sans", sans-serif';
+    const badgeW = Math.max(ctx.measureText(titleText).width, ctx.measureText(subText).width) + 24;
+    const badgeH = 46;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 2;
+
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(room.x + 10, room.y + 10, badgeW, badgeH, 6);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.fillRect(room.x + 10, room.y + 10, badgeW, badgeH);
+      ctx.strokeRect(room.x + 10, room.y + 10, badgeW, badgeH);
+    }
+    ctx.shadowColor = 'transparent';
+
+    ctx.fillStyle = '#1e293b';
     ctx.font = 'bold 13px "Plus Jakarta Sans", sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`${room.name}`, room.x + 12, room.y + 24);
+    ctx.fillText(titleText, room.x + 18, room.y + 28);
 
-    ctx.fillStyle = '#475569';
+    ctx.fillStyle = '#64748b';
     ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
-    ctx.fillText(`Fläche: ${m2} m² (${wM} m × ${hM} m) • Boden: ${room.surface.toUpperCase()}`, room.x + 12, room.y + 42);
+    ctx.fillText(subText, room.x + 18, room.y + 45);
+
+    // Deutliche Maßangaben an den Wandkanten (Oben: Breite & Links: Länge)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1;
+
+    // Oben: Breite
+    const wBadge = `${wM} m`;
+    ctx.font = 'bold 11px sans-serif';
+    const wBadgeW = ctx.measureText(wBadge).width + 16;
+    ctx.fillRect(room.x + (room.width - wBadgeW) / 2, room.y - 18, wBadgeW, 16);
+    ctx.strokeRect(room.x + (room.width - wBadgeW) / 2, room.y - 18, wBadgeW, 16);
+    ctx.fillStyle = '#0f172a';
+    ctx.textAlign = 'center';
+    ctx.fillText(`⟵ ${wBadge} ⟶`, room.x + room.width / 2, room.y - 6);
+
+    // Links: Länge
+    const hBadge = `${hM} m`;
+    const hBadgeW = ctx.measureText(hBadge).width + 14;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.fillRect(room.x - hBadgeW - 6, room.y + (room.height - 16) / 2, hBadgeW, 16);
+    ctx.strokeRect(room.x - hBadgeW - 6, room.y + (room.height - 16) / 2, hBadgeW, 16);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(hBadge, room.x - hBadgeW / 2 - 6, room.y + room.height / 2 + 4);
+
+    ctx.restore();
   });
 
   // 2. Wände rendern (Massive Trennwände)
@@ -2201,7 +2477,6 @@ function renderCanvas() {
       ctx.textAlign = 'center';
       ctx.fillText('🧶 ' + f.label, f.x + f.width / 2, f.y + f.height / 2);
     } else {
-      // Standard Möbelkasten
       ctx.save();
       ctx.fillStyle = '#f8fafc';
       ctx.strokeStyle = '#475569';
@@ -2224,30 +2499,33 @@ function renderCanvas() {
   // 5. Highlight & Umriss-Resize-Griffe für ausgewähltes Element
   if (selectedElement) {
     ctx.save();
-    ctx.strokeStyle = '#2563eb';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = '#8c7355';
+    ctx.lineWidth = Math.max(2, 2.5 / canvasZoom);
+    ctx.setLineDash([5, 3]);
 
     if (selectedElement.type === 'plant') {
       ctx.beginPath();
       ctx.arc(selectedElement.x, selectedElement.y, selectedElement.radius + 6, 0, Math.PI * 2);
       ctx.stroke();
     } else {
-      ctx.strokeRect(selectedElement.x - 2, selectedElement.y - 2, selectedElement.width + 4, selectedElement.height + 4);
+      ctx.strokeRect(selectedElement.x - 3, selectedElement.y - 3, selectedElement.width + 6, selectedElement.height + 6);
 
-      // 8 Resize Handles zeichnen (Ecken & Kanten zum Verändern des Umrisses)
+      // Größere, gut greifbare Griffe zeichnen
       ctx.setLineDash([]);
       const handles = getResizeHandles(selectedElement);
+      const hSize = Math.max(9, Math.round(11 / canvasZoom));
       handles.forEach(h => {
-        ctx.fillStyle = '#2563eb';
-        ctx.fillRect(h.x - HANDLE_SIZE / 2, h.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+        ctx.fillStyle = '#8c7355';
+        ctx.fillRect(h.x - hSize / 2, h.y - hSize / 2, hSize, hSize);
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1.5;
-        ctx.strokeRect(h.x - HANDLE_SIZE / 2, h.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+        ctx.strokeRect(h.x - hSize / 2, h.y - hSize / 2, hSize, hSize);
       });
     }
     ctx.restore();
   }
+
+  ctx.restore(); // Ende der Zoom/Pan-Transformation
 }
 
 // ----------------------------------------------------
@@ -2383,6 +2661,17 @@ function updateInspector() {
         </div>
       </div>
 
+      <div class="inspector-row">
+        <div class="inspector-field">
+          <label>Position X (m)</label>
+          <input type="number" id="insp-room-x" step="0.1" value="${(el.x / PIXELS_PER_METER).toFixed(2)}">
+        </div>
+        <div class="inspector-field">
+          <label>Position Y (m)</label>
+          <input type="number" id="insp-room-y" step="0.1" value="${(el.y / PIXELS_PER_METER).toFixed(2)}">
+        </div>
+      </div>
+
       <div class="inspector-field">
         <label>Bodenbelag</label>
         <select id="insp-surface" class="select-input">
@@ -2421,6 +2710,24 @@ function updateInspector() {
       el.surface = e.target.value;
       saveData();
       renderCanvas();
+    });
+
+    document.getElementById('insp-room-x').addEventListener('change', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+        el.x = Math.round(val * PIXELS_PER_METER);
+        saveData();
+        renderCanvas();
+      }
+    });
+
+    document.getElementById('insp-room-y').addEventListener('change', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+        el.y = Math.round(val * PIXELS_PER_METER);
+        saveData();
+        renderCanvas();
+      }
     });
 
     // Breite in Metern ändern
@@ -2507,6 +2814,17 @@ function updateInspector() {
         </div>
       </div>
 
+      <div class="inspector-row">
+        <div class="inspector-field">
+          <label>Position X (m)</label>
+          <input type="number" id="insp-wall-x" step="0.1" value="${(el.x / PIXELS_PER_METER).toFixed(2)}">
+        </div>
+        <div class="inspector-field">
+          <label>Position Y (m)</label>
+          <input type="number" id="insp-wall-y" step="0.1" value="${(el.y / PIXELS_PER_METER).toFixed(2)}">
+        </div>
+      </div>
+
       <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
         <button id="btn-insp-rotate-wall" class="btn btn-sm btn-secondary full-width">🔄 90° Drehen (horizontal/vertikal)</button>
       </div>
@@ -2529,6 +2847,24 @@ function updateInspector() {
       el.label = e.target.value;
       saveData();
       renderCanvas();
+    });
+
+    document.getElementById('insp-wall-x').addEventListener('change', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+        el.x = Math.round(val * PIXELS_PER_METER);
+        saveData();
+        renderCanvas();
+      }
+    });
+
+    document.getElementById('insp-wall-y').addEventListener('change', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+        el.y = Math.round(val * PIXELS_PER_METER);
+        saveData();
+        renderCanvas();
+      }
     });
 
     document.getElementById('insp-ww').addEventListener('change', (e) => {
@@ -2565,13 +2901,14 @@ function updateInspector() {
 
   } else if (el.type === 'furniture') {
     const isWindow = el.subType === 'fenster' || el.subType === 'fenster_gross';
+    const isDoor = el.subType === 'tuer';
     const isStairs = el.subType && el.subType.includes('treppe');
     const wM = (el.width / PIXELS_PER_METER).toFixed(2);
     const hM = (el.height / PIXELS_PER_METER).toFixed(2);
 
     panel.innerHTML = `
       <div class="inspector-field">
-        <label>${isWindow ? 'Fenster-Bezeichnung' : isStairs ? 'Treppen-Bezeichnung' : 'Möbelstück / Objekt'}</label>
+        <label>${isWindow ? 'Fenster-Bezeichnung' : isDoor ? 'Tür-Bezeichnung' : isStairs ? 'Treppen-Bezeichnung' : 'Möbelstück / Objekt'}</label>
         <input type="text" id="insp-label" value="${el.label}">
       </div>
 
@@ -2597,8 +2934,55 @@ function updateInspector() {
         </div>
       </div>
 
-      <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+      <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
         <button id="btn-insp-rotate" class="btn btn-sm btn-secondary full-width">🔄 90° Drehen</button>
+      </div>
+
+      <!-- Präzise Positionierung & Wand-Andockung -->
+      <div class="position-control-box" style="margin-top:0.5rem;">
+        <label style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted);">
+          📍 Position & Feinjustierung
+        </label>
+        <div class="inspector-row">
+          <div class="inspector-field">
+            <label>Pos X (m)</label>
+            <input type="number" id="insp-posX" step="0.1" value="${(el.x / PIXELS_PER_METER).toFixed(2)}">
+          </div>
+          <div class="inspector-field">
+            <label>Pos Y (m)</label>
+            <input type="number" id="insp-posY" step="0.1" value="${(el.y / PIXELS_PER_METER).toFixed(2)}">
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
+          <span style="font-size:0.72rem; font-weight:700; color:var(--text-muted);">Schrittweite:</span>
+          <div class="btn-group" id="nudge-step-group">
+            <button class="btn btn-sm btn-nudge-step active" data-step="0.1">10 cm</button>
+            <button class="btn btn-sm btn-nudge-step" data-step="0.5">50 cm</button>
+          </div>
+        </div>
+
+        <div class="nudge-dpad" style="margin:0.35rem auto;">
+          <div style="grid-column: 2;"><button class="nudge-btn" data-dx="0" data-dy="-1" title="Nach oben schieben">⬆️</button></div>
+          <div style="grid-column: 1; grid-row: 2;"><button class="nudge-btn" data-dx="-1" data-dy="0" title="Nach links schieben">⬅️</button></div>
+          <div style="grid-column: 2; grid-row: 2; font-size:0.75rem; display:flex; align-items:center; justify-content:center; color:var(--text-muted);">✢</div>
+          <div style="grid-column: 3; grid-row: 2;"><button class="nudge-btn" data-dx="1" data-dy="0" title="Nach rechts schieben">➡️</button></div>
+          <div style="grid-column: 2; grid-row: 3;"><button class="nudge-btn" data-dx="0" data-dy="1" title="Nach unten schieben">⬇️</button></div>
+        </div>
+
+        ${isWindow || isDoor ? `
+          <div style="margin-top:0.35rem; border-top:1px solid var(--border); padding-top:0.35rem;">
+            <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:0.25rem;">
+              🪟 Schnell an Wand andocken:
+            </label>
+            <div class="dock-btn-grid">
+              <button class="dock-btn" data-dock="north">⬆️ An Nordwand</button>
+              <button class="dock-btn" data-dock="south">⬇️ An Südwand</button>
+              <button class="dock-btn" data-dock="west">⬅️ An Westwand</button>
+              <button class="dock-btn" data-dock="east">➡️ An Ostwand</button>
+            </div>
+          </div>
+        ` : ''}
       </div>
 
       ${!isWindow && !isStairs ? getTextureControlHTML(el) : ''}
@@ -2658,6 +3042,95 @@ function updateInspector() {
       }
     });
 
+    document.getElementById('insp-posX').addEventListener('change', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+        el.x = Math.round(val * PIXELS_PER_METER);
+        saveData();
+        renderCanvas();
+      }
+    });
+
+    document.getElementById('insp-posY').addEventListener('change', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+        el.y = Math.round(val * PIXELS_PER_METER);
+        saveData();
+        renderCanvas();
+      }
+    });
+
+    // Nudge D-Pad Schrittweite & Buttons
+    let activeNudgeMeters = 0.1;
+    document.querySelectorAll('.btn-nudge-step').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn-nudge-step').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeNudgeMeters = parseFloat(btn.dataset.step) || 0.1;
+      });
+    });
+
+    document.querySelectorAll('.nudge-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const dx = parseInt(btn.dataset.dx, 10) * Math.round(activeNudgeMeters * PIXELS_PER_METER);
+        const dy = parseInt(btn.dataset.dy, 10) * Math.round(activeNudgeMeters * PIXELS_PER_METER);
+        el.x += dx;
+        el.y += dy;
+        document.getElementById('insp-posX').value = (el.x / PIXELS_PER_METER).toFixed(2);
+        document.getElementById('insp-posY').value = (el.y / PIXELS_PER_METER).toFixed(2);
+        saveData();
+        renderCanvas();
+        if (activeViewMode === '3d') update3DScene();
+      });
+    });
+
+    // Wand-Andockung (Nord, Süd, West, Ost)
+    document.querySelectorAll('.dock-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const dockDir = btn.dataset.dock;
+        const rooms = (appData.floors[currentFloor] || []).filter(r => r.type === 'room');
+        if (rooms.length === 0) {
+          alert('Bitte ziehe zuerst einen Raum auf, an den das Fenster andocken kann.');
+          return;
+        }
+
+        // Nächstgelegenen Raum ermitteln
+        let targetRoom = rooms[0];
+        let minDist = 999999;
+        rooms.forEach(r => {
+          const dist = Math.hypot((r.x + r.width / 2) - (el.x + el.width / 2), (r.y + r.height / 2) - (el.y + el.height / 2));
+          if (dist < minDist) { minDist = dist; targetRoom = r; }
+        });
+
+        if (dockDir === 'north') {
+          if (el.width < el.height) { const tmp = el.width; el.width = el.height; el.height = tmp; }
+          el.x = Math.round(targetRoom.x + (targetRoom.width - el.width) / 2);
+          el.y = Math.round(targetRoom.y - el.height / 2);
+        } else if (dockDir === 'south') {
+          if (el.width < el.height) { const tmp = el.width; el.width = el.height; el.height = tmp; }
+          el.x = Math.round(targetRoom.x + (targetRoom.width - el.width) / 2);
+          el.y = Math.round(targetRoom.y + targetRoom.height - el.height / 2);
+        } else if (dockDir === 'west') {
+          if (el.height < el.width) { const tmp = el.width; el.width = el.height; el.height = tmp; }
+          el.x = Math.round(targetRoom.x - el.width / 2);
+          el.y = Math.round(targetRoom.y + (targetRoom.height - el.height) / 2);
+        } else if (dockDir === 'east') {
+          if (el.height < el.width) { const tmp = el.width; el.width = el.height; el.height = tmp; }
+          el.x = Math.round(targetRoom.x + targetRoom.width - el.width / 2);
+          el.y = Math.round(targetRoom.y + (targetRoom.height - el.height) / 2);
+        }
+
+        document.getElementById('insp-posX').value = (el.x / PIXELS_PER_METER).toFixed(2);
+        document.getElementById('insp-posY').value = (el.y / PIXELS_PER_METER).toFixed(2);
+        document.getElementById('insp-fw').value = (el.width / PIXELS_PER_METER).toFixed(2);
+        document.getElementById('insp-fh').value = (el.height / PIXELS_PER_METER).toFixed(2);
+
+        saveData();
+        renderCanvas();
+        if (activeViewMode === '3d') update3DScene();
+      });
+    });
+
     document.getElementById('btn-insp-rotate').addEventListener('click', () => {
       const tmp = el.width;
       el.width = el.height;
@@ -2666,6 +3139,7 @@ function updateInspector() {
       document.getElementById('insp-fh').value = (el.height / PIXELS_PER_METER).toFixed(2);
       saveData();
       renderCanvas();
+      if (activeViewMode === '3d') update3DScene();
     });
 
     document.getElementById('btn-insp-del').addEventListener('click', () => {

@@ -710,6 +710,111 @@ input:focus, select:focus {
   display: flex;
   gap: 0.85rem;
   font-weight: 600;
+  font-size: 0.78rem;
+}
+
+/* 2D Canvas Zoom Controls */
+.canvas-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #ffffff;
+  padding: 2px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.zoom-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.zoom-val-badge {
+  font-weight: 700;
+  font-size: 0.8rem;
+  min-width: 42px;
+  text-align: center;
+  color: var(--primary);
+}
+
+.canvas-zoom-controls .btn-sm {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+/* Inspector Positioning & Nudge D-Pad Controls */
+.position-control-box {
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nudge-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  max-width: 170px;
+  margin: 0 auto;
+}
+
+.nudge-btn {
+  padding: 0.35rem 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+}
+
+.nudge-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.nudge-step-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.dock-btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.dock-btn {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  transition: all 0.12s;
+}
+
+.dock-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .canvas-scroll-container {

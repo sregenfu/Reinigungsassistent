@@ -352,7 +352,15 @@
               <div id="wrapper-2d" class="canvas-wrapper">
                 <div class="canvas-info-banner">
                   <div class="canvas-banner-left">
-                    <span>💡 <strong>Tipp:</strong> Klicke einen Raum an, um die <strong>m² exakt per Tastatur oder Ziehen</strong> anzupassen. Eckpunkte am Raumrahmen verändern den Umriss.</span>
+                    <span>💡 <strong>Tipp:</strong> Klicke ein Element an, um es zu verschieben oder zu skalieren.</span>
+                  </div>
+                  <div class="canvas-zoom-controls">
+                    <span class="zoom-title">🔍 Zoom:</span>
+                    <button id="btn-zoom-out" class="btn btn-sm btn-secondary" title="Verkleinern (Zoom -)">−</button>
+                    <span id="canvas-zoom-val" class="zoom-val-badge">100%</span>
+                    <button id="btn-zoom-in" class="btn btn-sm btn-secondary" title="Vergrößern (Zoom +)">+</button>
+                    <button id="btn-zoom-fit" class="btn btn-sm btn-ghost" title="Raum zentriert einpassen">⛶ Einpassen</button>
+                    <button id="btn-zoom-reset" class="btn btn-sm btn-ghost" title="100% Maßstab">1:1</button>
                   </div>
                   <div class="canvas-banner-right">
                     <span id="canvas-scale-info">Maßstab: 1 m ≈ 40 px</span>

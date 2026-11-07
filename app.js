@@ -563,6 +563,25 @@ function calculateNextDueDate(lastDoneDate, intervalDays) {
   return d.toISOString();
 }
 
+// Ermittelt ein passendes kleines Symbol für eine Putzaufgabe im Kalender
+function getTaskSymbol(task) {
+  const str = `${task.title || ''} ${task.room || ''} ${task.surface || ''}`.toLowerCase();
+  if (str.includes('küche') || str.includes('koch') || str.includes('herd') || str.includes('spül')) return '🍳';
+  if (str.includes('wc') || str.includes('toilette') || str.includes('klo')) return '🚽';
+  if (str.includes('bad') || str.includes('dusch') || str.includes('wanne') || str.includes('waschtisch') || str.includes('sanitär')) return '🛁';
+  if (str.includes('fenster') || str.includes('glas') || str.includes('panorama')) return '🪟';
+  if (str.includes('treppe') || str.includes('stuf') || str.includes('geländer')) return '🪜';
+  if (str.includes('pflanz') || str.includes('gieß') || str.includes('monstera') || str.includes('ficus') || str.includes('palme')) return '🪴';
+  if (str.includes('bett') || str.includes('schlaf') || str.includes('matratze')) return '🛏️';
+  if (str.includes('couch') || str.includes('sofa') || str.includes('wohnzimmer')) return '🛋️';
+  if (str.includes('saugen') || str.includes('staub') || str.includes('sauger') || str.includes('fegen')) return '🧹';
+  if (str.includes('wisch') || str.includes('feucht') || str.includes('putz') || str.includes('mopp')) return '🪣';
+  if (str.includes('wäsche') || str.includes('waschmaschine') || str.includes('bügel')) return '🧺';
+  if (str.includes('einkauf') || str.includes('kauf')) return '🛒';
+  if (str.includes('müll') || str.includes('abfall') || str.includes('tonne')) return '🗑️';
+  return '🪣'; // Standard: Putzeimer
+}
+
 function renderTasks() {
   const dueContainer = document.getElementById('tasks-due-list');
   const allContainer = document.getElementById('tasks-all-list');
@@ -739,13 +758,22 @@ function renderCleaningCalendar() {
     });
 
     let badgesHtml = '';
-    tasksForDay.forEach(t => {
+    const maxVisibleSymbols = 4;
+    const visibleTasks = tasksForDay.slice(0, maxVisibleSymbols);
+    const hiddenCount = tasksForDay.length - maxVisibleSymbols;
+
+    visibleTasks.forEach(t => {
       const diff = getDaysDifference(calculateNextDueDate(t.lastDone, t.intervalDays));
       let bClass = '';
       if (diff < 0) bClass = 'overdue';
       else if (diff === 0) bClass = 'due-today';
-      badgesHtml += `<div class="cal-task-badge ${bClass}" title="${t.title}">${t.title}</div>`;
+      const sym = getTaskSymbol(t);
+      badgesHtml += `<span class="cal-symbol-chip ${bClass}" title="${t.title} (${t.room || t.floor})">${sym}</span>`;
     });
+
+    if (hiddenCount > 0) {
+      badgesHtml += `<span class="cal-symbol-more" title="${hiddenCount} weitere Aufgaben auf diesem Tag">+${hiddenCount}</span>`;
+    }
 
     html += `
       <div class="cal-day-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-date="${dateStr}">
@@ -793,7 +821,7 @@ function showCalendarDayDetails(dateStr) {
     taskListHtml = tasksForDay.map(t => `
       <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:0.4rem 0.6rem; border-radius:6px; margin-bottom:0.35rem; border:1px solid var(--border);">
         <div>
-          <strong>${t.title}</strong>
+          <strong>${getTaskSymbol(t)} ${t.title}</strong>
           <span style="font-size:0.75rem; color:var(--text-muted); display:block;">📍 ${t.floor} (${t.room || 'Allgemein'}) • ${t.surface}</span>
         </div>
         <div style="display:flex; gap:4px;">

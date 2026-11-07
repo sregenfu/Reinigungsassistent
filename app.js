@@ -1094,7 +1094,49 @@ function setupCatalogItems() {
       }
 
       let newElement = null;
-      if (type.startsWith('pflanze_')) {
+      if (type === 'room_with_door') {
+        // Raum inklusive Wand & Tür hinzufügen
+        const area = calculateAreaM2(w, h);
+        const surface = (document.getElementById('fp-surface-type') || {}).value || 'laminat';
+        const newRoom = {
+          id: 'r-' + Date.now(),
+          type: 'room',
+          name: `Neues Zimmer (${area} m²)`,
+          surface,
+          x: spawnX,
+          y: spawnY,
+          width: w,
+          height: h,
+          areaM2: area,
+          badgePos: 'outside-top'
+        };
+
+        const newDoor = {
+          id: 'f-door-' + Date.now(),
+          type: 'furniture',
+          subType: 'tuer',
+          label: 'Zimmertür',
+          x: spawnX + Math.round((w - 70) / 2),
+          y: spawnY + h - 10,
+          width: 70,
+          height: 20,
+          swingIn: true,
+          hinge: 'left'
+        };
+
+        if (!appData.floors[currentFloor]) appData.floors[currentFloor] = [];
+        appData.floors[currentFloor].push(newRoom);
+        appData.floors[currentFloor].push(newDoor);
+        selectedElement = newRoom;
+
+        if (window.switchTool) window.switchTool('select');
+        saveData();
+        updateInspector();
+        if (activeViewMode === '3d') update3DScene();
+        else renderCanvas();
+        return;
+
+      } else if (type.startsWith('pflanze_')) {
         newElement = {
           id: 'p-' + Date.now(),
           type: 'plant',
@@ -1112,7 +1154,8 @@ function setupCatalogItems() {
           y: spawnY,
           width: w,
           height: h,
-          label: label
+          label: label,
+          rotation: (type === 'wand_v') ? 90 : 0
         };
       } else if (type === 'treppe_auf' || type === 'treppe_ab') {
         const nextTarget = (type === 'treppe_auf')
@@ -1123,6 +1166,8 @@ function setupCatalogItems() {
           type: 'furniture',
           subType: type,
           targetFloor: nextTarget,
+          stairDirection: (type === 'treppe_ab') ? 'down' : 'up',
+          stairRunDirection: 'east',
           label: label,
           x: spawnX,
           y: spawnY,
@@ -1585,6 +1630,36 @@ function getPresetSampleTexture(type) {
     for (let x = 0; x < 128; x += 4) {
       for (let y = 0; y < 128; y += 4) {
         if ((x + y) % 8 === 0) cx.fillRect(x, y, 2, 2);
+      }
+    }
+  } else if (type === 'beton') {
+    // Sichtbeton / Putzstruktur mit feiner Körnung
+    cx.fillStyle = '#94a3b8';
+    cx.fillRect(0, 0, 128, 128);
+    cx.fillStyle = '#64748b';
+    for (let i = 0; i < 400; i++) {
+      const rx = (i * 37) % 128;
+      const ry = (i * 59) % 128;
+      cx.fillRect(rx, ry, 1, 1);
+    }
+  } else if (type === 'tapete') {
+    // Elegante weiße / beige Textiltapete mit Streifenstruktur
+    cx.fillStyle = '#f8fafc';
+    cx.fillRect(0, 0, 128, 128);
+    cx.fillStyle = '#e2e8f0';
+    for (let x = 0; x < 128; x += 16) {
+      cx.fillRect(x, 0, 8, 128);
+    }
+  } else if (type === 'klinker') {
+    // Ziegelwand / Klinker
+    cx.fillStyle = '#991b1b';
+    cx.fillRect(0, 0, 128, 128);
+    cx.fillStyle = '#cbd5e1';
+    for (let y = 0; y < 128; y += 16) {
+      cx.fillRect(0, y, 128, 2);
+      const off = (y % 32 === 0) ? 0 : 16;
+      for (let x = off; x < 128; x += 32) {
+        cx.fillRect(x, y, 2, 16);
       }
     }
   }
@@ -2223,10 +2298,11 @@ function drawHangingToilet(ctx, el) {
   ctx.restore();
 }
 
-// 9. Treppen (Aufwärts oder Abwärts mit Etagenverbindung)
+// 9. Treppen (Aufwärts oder Abwärts mit Etagenverbindung und freier Steigungsrichtung)
 function drawOpenStairs(ctx, el) {
   const { x, y, width: w, height: h } = el;
-  const isUp = el.subType === 'treppe_auf' || (!el.subType.includes('ab'));
+  const isUp = el.subType === 'treppe_auf' || el.stairDirection === 'up' || (!el.subType.includes('ab') && el.stairDirection !== 'down');
+  const dir = el.stairRunDirection || 'east'; // 'east' (nach rechts), 'west' (nach links), 'north' (nach oben), 'south' (nach unten)
   ctx.save();
 
   // Treppenkörper
@@ -2236,52 +2312,87 @@ function drawOpenStairs(ctx, el) {
   ctx.lineWidth = 2;
   ctx.strokeRect(x, y, w, h);
 
-  // Freitragende Holzstufen mit Schatten
-  const steps = 7;
-  const stepW = w / steps;
+  // Stufen je nach Laufrichtung
+  const steps = 8;
+  const isVertical = (dir === 'north' || dir === 'south' || h > w * 1.3);
 
-  for (let i = 0; i < steps; i++) {
-    const sx = x + i * stepW;
-    // Stufenschatten
-    ctx.fillStyle = 'rgba(0,0,0,0.06)';
-    ctx.fillRect(sx, y, 4, h);
-
-    // Stufenkante
-    ctx.strokeStyle = '#854d0e';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(sx, y);
-    ctx.lineTo(sx, y + h);
-    ctx.stroke();
+  if (isVertical) {
+    const stepH = h / steps;
+    for (let i = 0; i < steps; i++) {
+      const sy = y + i * stepH;
+      ctx.fillStyle = 'rgba(0,0,0,0.06)';
+      ctx.fillRect(x, sy, w, 4);
+      ctx.strokeStyle = '#854d0e';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, sy);
+      ctx.lineTo(x + w, sy);
+      ctx.stroke();
+    }
+  } else {
+    const stepW = w / steps;
+    for (let i = 0; i < steps; i++) {
+      const sx = x + i * stepW;
+      ctx.fillStyle = 'rgba(0,0,0,0.06)';
+      ctx.fillRect(sx, y, 4, h);
+      ctx.strokeStyle = '#854d0e';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx, y);
+      ctx.lineTo(sx, y + h);
+      ctx.stroke();
+    }
   }
 
   // Treppen-Geländer
   ctx.strokeStyle = '#a16207';
   ctx.lineWidth = 2.5;
   ctx.beginPath();
-  ctx.moveTo(x + 4, y + 4);
-  ctx.lineTo(x + w - 4, y + 4);
+  if (isVertical) {
+    ctx.moveTo(x + 4, y + 4);
+    ctx.lineTo(x + 4, y + h - 4);
+  } else {
+    ctx.moveTo(x + 4, y + 4);
+    ctx.lineTo(x + w - 4, y + 4);
+  }
   ctx.stroke();
 
-  // Steigungspfeil mit Ziel-Etage
+  // Steigungspfeil mit Startpunkt (Kreis) und Pfeilspitze in Richtung des Laufs
   const arrowColor = isUp ? '#ca8a04' : '#2563eb';
   ctx.strokeStyle = arrowColor;
   ctx.fillStyle = arrowColor;
   ctx.lineWidth = 2.5;
 
-  const startArrowX = isUp ? x + 15 : x + w - 25;
-  const endArrowX = isUp ? x + w - 25 : x + 15;
-  const arrowHeadDir = isUp ? 1 : -1;
+  let sx, sy, ex, ey;
+  if (dir === 'west') {
+    sx = x + w - 16; sy = y + h / 2; ex = x + 16; ey = y + h / 2;
+  } else if (dir === 'north') {
+    sx = x + w / 2; sy = y + h - 16; ex = x + w / 2; ey = y + 16;
+  } else if (dir === 'south') {
+    sx = x + w / 2; sy = y + 16; ex = x + w / 2; ey = y + h - 16;
+  } else {
+    // default 'east'
+    sx = x + 16; sy = y + h / 2; ex = x + w - 16; ey = y + h / 2;
+  }
 
+  // Antritts-Kreis
   ctx.beginPath();
-  ctx.moveTo(startArrowX, y + h / 2);
-  ctx.lineTo(endArrowX, y + h / 2);
+  ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pfeillinie
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(ex, ey);
   ctx.stroke();
 
+  // Pfeilspitze
+  const angle = Math.atan2(ey - sy, ex - sx);
   ctx.beginPath();
-  ctx.moveTo(endArrowX, y + h / 2 - 6);
-  ctx.lineTo(endArrowX + arrowHeadDir * 12, y + h / 2);
-  ctx.lineTo(endArrowX, y + h / 2 + 6);
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - 12 * Math.cos(angle - Math.PI / 6), ey - 12 * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(ex - 12 * Math.cos(angle + Math.PI / 6), ey - 12 * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
   ctx.fill();
 
   const targetText = el.targetFloor ? `nach ${el.targetFloor}` : '3 Etagen';
@@ -2335,38 +2446,95 @@ function drawWall(ctx, el) {
   ctx.restore();
 }
 
-// 9c. Türen mit Schwenkbereich
+// 9c. Türen mit frei wählbarem Schwenkbereich (nach innen / außen, DIN links / rechts)
 function drawDoor(ctx, el) {
   const { x, y, width: w, height: h } = el;
+  const swingIn = el.swingIn !== undefined ? el.swingIn : true; // true = nach innen, false = nach außen
+  const hinge = el.hinge || 'left'; // 'left' | 'right'
+
   ctx.save();
 
-  // Türrahmen / Zarge
+  // Türrahmen / Zarge (weiß mit Rahmen)
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = '#64748b';
   ctx.lineWidth = 2;
   ctx.strokeRect(x, y, w, h);
 
-  // Türblatt & 90°-Öffnungsbogen
-  const r = Math.max(w, h);
+  // Drehpunkt (Scharnier) berechnen
+  const isVertical = h > w;
+  const doorWidth = isVertical ? h : w;
+
+  let hingeX, hingeY, startAngle, endAngle, leafEndX, leafEndY;
+
+  if (!isVertical) {
+    // Horizontale Tür (an Nord- oder Südwand)
+    hingeX = (hinge === 'left') ? x : x + w;
+    hingeY = y + h / 2;
+
+    if (swingIn) {
+      // Schwingt nach unten (in den Raum hinein bei Nordwand)
+      if (hinge === 'left') {
+        startAngle = 0; endAngle = Math.PI / 2;
+        leafEndX = hingeX; leafEndY = hingeY + doorWidth;
+      } else {
+        startAngle = Math.PI / 2; endAngle = Math.PI;
+        leafEndX = hingeX; leafEndY = hingeY + doorWidth;
+      }
+    } else {
+      // Schwingt nach oben (nach außen)
+      if (hinge === 'left') {
+        startAngle = -Math.PI / 2; endAngle = 0;
+        leafEndX = hingeX; leafEndY = hingeY - doorWidth;
+      } else {
+        startAngle = Math.PI; endAngle = Math.PI * 1.5;
+        leafEndX = hingeX; leafEndY = hingeY - doorWidth;
+      }
+    }
+  } else {
+    // Vertikale Tür (an Ost- oder Westwand)
+    hingeX = x + w / 2;
+    hingeY = (hinge === 'left') ? y : y + h;
+
+    if (swingIn) {
+      // An Ostwand nach innen = nach links schwingen!
+      startAngle = Math.PI / 2; endAngle = Math.PI;
+      leafEndX = hingeX - doorWidth; leafEndY = hingeY;
+    } else {
+      // Nach rechts (nach außen) schwingen
+      startAngle = 0; endAngle = Math.PI / 2;
+      leafEndX = hingeX + doorWidth; leafEndY = hingeY;
+    }
+  }
+
+  // 90°-Öffnungsbogen (gestrichelt)
   ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.5;
   ctx.setLineDash([3, 3]);
   ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI / 2);
+  ctx.arc(hingeX, hingeY, doorWidth, startAngle, endAngle);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Türblatt
+  // Türblatt (Holzbraun / Vollmaterial)
   ctx.strokeStyle = '#b45309';
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x, y + r);
+  ctx.moveTo(hingeX, hingeY);
+  ctx.lineTo(leafEndX, leafEndY);
   ctx.stroke();
 
+  // Scharnierpunkt optisch hervorheben
+  ctx.fillStyle = '#b45309';
+  ctx.beginPath();
+  ctx.arc(hingeX, hingeY, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Beschriftung
   ctx.fillStyle = '#475569';
   ctx.font = 'bold 9px sans-serif';
-  ctx.fillText('🚪 Tür', x + 5, y + 14);
+  const labelText = `🚪 ${Math.round((doorWidth / PIXELS_PER_METER) * 100)}cm`;
+  ctx.fillText(labelText, x + 4, y + Math.min(h, 14));
 
   ctx.restore();
 }
@@ -2609,13 +2777,33 @@ function renderCanvas() {
     ctx.restore();
   });
 
-  // 2. Wände rendern (Massive Trennwände)
+  // 2. Wände rendern (Massive Trennwände mit freier Drehung)
   elements.filter(el => el.type === 'wall').forEach(w => {
+    ctx.save();
+    const rot = (w.rotation || 0) * (Math.PI / 180);
+    if (rot !== 0) {
+      const cx = w.x + w.width / 2;
+      const cy = w.y + w.height / 2;
+      ctx.translate(cx, cy);
+      ctx.rotate(rot);
+      ctx.translate(-cx, -cy);
+    }
     drawWall(ctx, w);
+    ctx.restore();
   });
 
-  // 3. Möbel & Raumelemente rendern
+  // 3. Möbel & Raumelemente rendern (mit Berücksichtigung von Rotation)
   elements.filter(el => el.type === 'furniture').forEach(f => {
+    ctx.save();
+    const rot = (f.rotation || 0) * (Math.PI / 180);
+    if (rot !== 0) {
+      const cx = f.x + f.width / 2;
+      const cy = f.y + f.height / 2;
+      ctx.translate(cx, cy);
+      ctx.rotate(rot);
+      ctx.translate(-cx, -cy);
+    }
+
     const sub = f.subType;
     if (sub === 'couch_eck') {
       drawDesignerCouchL(ctx, f);
@@ -2671,6 +2859,7 @@ function renderCanvas() {
       ctx.fillText(f.label, f.x + f.width / 2, f.y + f.height / 2 + 4);
       ctx.restore();
     }
+    ctx.restore();
   });
 
   // 4. Pflanzen rendern
@@ -2764,7 +2953,10 @@ function getTextureControlHTML(el) {
           <span class="sample-chip" data-sample="eiche">🪵 Eichenholz</span>
           <span class="sample-chip" data-sample="marmor">🏛️ Marmor</span>
           <span class="sample-chip" data-sample="teppich">🧶 Berber-Wolle</span>
-          <span class="sample-chip" data-sample="samt">🛋️ Stoff/Polster</span>
+          <span class="sample-chip" data-sample="samt">🛋️ Polsterstoff</span>
+          <span class="sample-chip" data-sample="beton">🧱 Putz/Beton</span>
+          <span class="sample-chip" data-sample="tapete">📜 Tapete</span>
+          <span class="sample-chip" data-sample="klinker">🧱 Klinker</span>
         </div>
       </div>
     </div>
@@ -2808,13 +3000,82 @@ function bindTextureControlEvents(el) {
     chip.addEventListener('click', () => {
       const sampleType = chip.dataset.sample;
       el.textureImg = getPresetSampleTexture(sampleType);
-      el.textureScaleCm = sampleType === 'marmor' ? 60 : sampleType === 'eiche' ? 40 : 50;
+      el.textureScaleCm = sampleType === 'marmor' ? 60 : sampleType === 'eiche' ? 40 : sampleType === 'klinker' ? 30 : 50;
       saveData();
       updateInspector();
       renderCanvas();
       if (activeViewMode === '3d') update3DScene();
     });
   });
+}
+
+// ----------------------------------------------------
+// FREIE DREHUNG (0° BIS 360°) FÜR MÖBEL, TÜREN, WÄNDE & TREPPEN
+// ----------------------------------------------------
+function getRotationControlHTML(el) {
+  const rot = Math.round(el.rotation || 0);
+  return `
+    <div class="rotation-control-box" style="margin-top:0.5rem; background:var(--bg-main); border:1px solid var(--border); border-radius:8px; padding:0.55rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <label style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted);">
+          🔄 Ausrichtung / Drehung
+        </label>
+        <span id="label-rotation-deg" style="font-size:0.8rem; font-weight:700; color:var(--primary);">${rot}°</span>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.3rem;">
+        <input type="range" id="insp-rotation-slider" min="0" max="360" step="5" value="${rot}" style="flex:1;">
+        <input type="number" id="insp-rotation-input" min="0" max="360" step="1" value="${rot}" style="width:55px; text-align:center; font-weight:700;">
+      </div>
+
+      <div style="display:flex; gap:0.25rem; margin-top:0.35rem; flex-wrap:wrap;">
+        <button class="btn btn-sm btn-quick-rot" data-rot="0" style="flex:1; padding:2px 4px; font-size:0.72rem;">0° (Nord)</button>
+        <button class="btn btn-sm btn-quick-rot" data-rot="90" style="flex:1; padding:2px 4px; font-size:0.72rem;">90° (Ost)</button>
+        <button class="btn btn-sm btn-quick-rot" data-rot="180" style="flex:1; padding:2px 4px; font-size:0.72rem;">180° (Süd)</button>
+        <button class="btn btn-sm btn-quick-rot" data-rot="270" style="flex:1; padding:2px 4px; font-size:0.72rem;">270° (West)</button>
+      </div>
+
+      <div style="display:flex; gap:0.3rem; margin-top:0.3rem;">
+        <button id="btn-rot-minus-45" class="btn btn-sm btn-secondary" style="flex:1; font-size:0.75rem;">↺ -45°</button>
+        <button id="btn-rot-plus-45" class="btn btn-sm btn-secondary" style="flex:1; font-size:0.75rem;">↻ +45°</button>
+        <button id="btn-rot-plus-90" class="btn btn-sm btn-secondary" style="flex:1; font-size:0.75rem;">🔄 +90°</button>
+      </div>
+    </div>
+  `;
+}
+
+function bindRotationControlEvents(el) {
+  const slider = document.getElementById('insp-rotation-slider');
+  const numInput = document.getElementById('insp-rotation-input');
+  const label = document.getElementById('label-rotation-deg');
+
+  const setRot = (deg) => {
+    let normalized = Math.round(deg) % 360;
+    if (normalized < 0) normalized += 360;
+    el.rotation = normalized;
+    if (slider) slider.value = normalized;
+    if (numInput) numInput.value = normalized;
+    if (label) label.textContent = normalized + '°';
+    saveData();
+    renderCanvas();
+    if (activeViewMode === '3d') update3DScene();
+  };
+
+  if (slider) slider.addEventListener('input', (e) => setRot(parseFloat(e.target.value)));
+  if (numInput) numInput.addEventListener('change', (e) => setRot(parseFloat(e.target.value)));
+
+  document.querySelectorAll('.btn-quick-rot').forEach(btn => {
+    btn.addEventListener('click', () => setRot(parseFloat(btn.dataset.rot)));
+  });
+
+  const btnM45 = document.getElementById('btn-rot-minus-45');
+  if (btnM45) btnM45.addEventListener('click', () => setRot((el.rotation || 0) - 45));
+
+  const btnP45 = document.getElementById('btn-rot-plus-45');
+  if (btnP45) btnP45.addEventListener('click', () => setRot((el.rotation || 0) + 45));
+
+  const btnP90 = document.getElementById('btn-rot-plus-90');
+  if (btnP90) btnP90.addEventListener('click', () => setRot((el.rotation || 0) + 90));
 }
 
 function getScaleButtonsHTML() {
@@ -3221,11 +3482,7 @@ function updateInspector() {
       </div>
 
       ${getScaleButtonsHTML()}
-
-      <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
-        <button id="btn-insp-rotate-wall" class="btn btn-sm btn-secondary full-width">🔄 90° Drehen (horizontal/vertikal)</button>
-      </div>
-
+      ${getRotationControlHTML(el)}
       ${getPositionAndNudgeHTML(el, false)}
       ${getTextureControlHTML(el)}
 
@@ -3240,6 +3497,7 @@ function updateInspector() {
     `;
 
     bindScaleButtons(el);
+    bindRotationControlEvents(el);
     bindPositionAndNudgeEvents(el);
     bindTextureControlEvents(el);
 
@@ -3319,9 +3577,43 @@ function updateInspector() {
 
       ${getScaleButtonsHTML()}
 
-      <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
-        <button id="btn-insp-rotate" class="btn btn-sm btn-secondary full-width">🔄 90° Drehen</button>
-      </div>
+      ${isDoor ? `
+        <div style="background:var(--bg-main); border:1px solid var(--border); border-radius:8px; padding:0.55rem; margin-top:0.4rem;">
+          <label style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); display:block; margin-bottom:0.25rem;">
+            🚪 Tür-Öffnungsrichtung & Anschlag
+          </label>
+          <div style="display:flex; gap:0.4rem;">
+            <button id="btn-toggle-door-swing" class="btn btn-sm btn-secondary" style="flex:1;">
+              ${(el.swingIn !== false) ? '↩️ Nach innen öffnend' : '↪️ Nach außen öffnend'}
+            </button>
+            <button id="btn-toggle-door-hinge" class="btn btn-sm btn-secondary" style="flex:1;">
+              ${(el.hinge === 'right') ? 'DIN Rechts' : 'DIN Links'}
+            </button>
+          </div>
+        </div>
+      ` : ''}
+
+      ${isStairs ? `
+        <div style="background:var(--bg-main); border:1px solid var(--border); border-radius:8px; padding:0.55rem; margin-top:0.4rem;">
+          <label style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); display:block; margin-bottom:0.25rem;">
+            🪜 Treppen-Richtung & Steigung
+          </label>
+          <div style="display:flex; gap:0.35rem; margin-bottom:0.35rem;">
+            <button id="btn-toggle-stair-mode" class="btn btn-sm btn-secondary" style="flex:1;">
+              ${(el.subType === 'treppe_ab' || el.stairDirection === 'down') ? '⬇️ Abwärts' : '⬆️ Aufwärts'}
+            </button>
+          </div>
+          <div style="font-size:0.72rem; font-weight:700; color:var(--text-muted); margin-bottom:0.2rem;">Laufrichtung des Treppenlaufs:</div>
+          <div style="display:flex; gap:0.2rem;">
+            <button class="btn btn-sm btn-stair-dir ${(!el.stairRunDirection || el.stairRunDirection === 'east') ? 'active' : ''}" data-sdir="east" style="flex:1; padding:2px 4px; font-size:0.72rem;">➡️ Ost</button>
+            <button class="btn btn-sm btn-stair-dir ${(el.stairRunDirection === 'west') ? 'active' : ''}" data-sdir="west" style="flex:1; padding:2px 4px; font-size:0.72rem;">⬅️ West</button>
+            <button class="btn btn-sm btn-stair-dir ${(el.stairRunDirection === 'north') ? 'active' : ''}" data-sdir="north" style="flex:1; padding:2px 4px; font-size:0.72rem;">⬆️ Nord</button>
+            <button class="btn btn-sm btn-stair-dir ${(el.stairRunDirection === 'south') ? 'active' : ''}" data-sdir="south" style="flex:1; padding:2px 4px; font-size:0.72rem;">⬇️ Süd</button>
+          </div>
+        </div>
+      ` : ''}
+
+      ${getRotationControlHTML(el)}
 
       ${getPositionAndNudgeHTML(el, isWindow || isDoor)}
       ${!isWindow && !isStairs ? getTextureControlHTML(el) : ''}
@@ -3346,9 +3638,55 @@ function updateInspector() {
     `;
 
     bindScaleButtons(el);
+    bindRotationControlEvents(el);
     bindPositionAndNudgeEvents(el);
     if (!isWindow && !isStairs) {
       bindTextureControlEvents(el);
+    }
+
+    if (isDoor) {
+      const btnSwing = document.getElementById('btn-toggle-door-swing');
+      if (btnSwing) {
+        btnSwing.addEventListener('click', () => {
+          el.swingIn = !(el.swingIn !== false);
+          saveData();
+          renderCanvas();
+          updateInspector();
+        });
+      }
+      const btnHinge = document.getElementById('btn-toggle-door-hinge');
+      if (btnHinge) {
+        btnHinge.addEventListener('click', () => {
+          el.hinge = (el.hinge === 'right') ? 'left' : 'right';
+          saveData();
+          renderCanvas();
+          updateInspector();
+        });
+      }
+    }
+
+    if (isStairs) {
+      const btnStairMode = document.getElementById('btn-toggle-stair-mode');
+      if (btnStairMode) {
+        btnStairMode.addEventListener('click', () => {
+          const currentIsDown = (el.subType === 'treppe_ab' || el.stairDirection === 'down');
+          el.stairDirection = currentIsDown ? 'up' : 'down';
+          el.subType = currentIsDown ? 'treppe_auf' : 'treppe_ab';
+          saveData();
+          renderCanvas();
+          updateInspector();
+          if (activeViewMode === '3d') update3DScene();
+        });
+      }
+      document.querySelectorAll('.btn-stair-dir').forEach(b => {
+        b.addEventListener('click', () => {
+          el.stairRunDirection = b.dataset.sdir;
+          saveData();
+          renderCanvas();
+          updateInspector();
+          if (activeViewMode === '3d') update3DScene();
+        });
+      });
     }
 
     document.getElementById('insp-label').addEventListener('input', (e) => {
@@ -3385,16 +3723,35 @@ function updateInspector() {
       }
     });
 
-    document.getElementById('btn-insp-rotate').addEventListener('click', () => {
-      const tmp = el.width;
-      el.width = el.height;
-      el.height = tmp;
-      document.getElementById('insp-fw').value = (el.width / PIXELS_PER_METER).toFixed(2);
-      document.getElementById('insp-fh').value = (el.height / PIXELS_PER_METER).toFixed(2);
-      saveData();
-      renderCanvas();
-      if (activeViewMode === '3d') update3DScene();
-    });
+    const rotBtn = document.getElementById('btn-insp-rotate');
+    if (rotBtn) {
+      rotBtn.addEventListener('click', () => {
+        const tmp = el.width;
+        el.width = el.height;
+        el.height = tmp;
+        document.getElementById('insp-fw').value = (el.width / PIXELS_PER_METER).toFixed(2);
+        document.getElementById('insp-fh').value = (el.height / PIXELS_PER_METER).toFixed(2);
+        saveData();
+        renderCanvas();
+        if (activeViewMode === '3d') update3DScene();
+      });
+    }
+
+    const rotWallBtn = document.getElementById('btn-insp-rotate-wall');
+    if (rotWallBtn) {
+      rotWallBtn.addEventListener('click', () => {
+        const tmp = el.width;
+        el.width = el.height;
+        el.height = tmp;
+        const ww = document.getElementById('insp-ww');
+        const wh = document.getElementById('insp-wh');
+        if (ww) ww.value = (el.width / PIXELS_PER_METER).toFixed(2);
+        if (wh) wh.value = (el.height / PIXELS_PER_METER).toFixed(2);
+        saveData();
+        renderCanvas();
+        if (activeViewMode === '3d') update3DScene();
+      });
+    }
 
     document.getElementById('btn-insp-del').addEventListener('click', () => {
       deleteSelectedElement();
@@ -3740,6 +4097,9 @@ function update3DScene() {
 
       const wallMesh = new THREE.Mesh(new THREE.BoxGeometry(w, wallHeight, d), wallMat);
       wallMesh.position.set(posX, baseY + wallHeight / 2, posZ);
+      if (wall.rotation) {
+        wallMesh.rotation.y = -wall.rotation * (Math.PI / 180);
+      }
       wallMesh.castShadow = true;
       scene3D.add(wallMesh);
     });
@@ -3753,6 +4113,9 @@ function update3DScene() {
 
       const group = new THREE.Group();
       group.position.set(posX, baseY, posZ);
+      if (f.rotation) {
+        group.rotation.y = -f.rotation * (Math.PI / 180);
+      }
 
       const sub = f.subType;
 

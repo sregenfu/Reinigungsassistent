@@ -661,6 +661,10 @@ let panStartY = 0;
 let activeResizeHandle = null;
 const HANDLE_SIZE = 10;
 
+// Verschieben der Raum-Plakette außerhalb der Zeichnung
+let isDraggingBadge = false;
+let badgeDragRoom = null;
+
 function setCanvasZoom(newZoom, pivotX, pivotY) {
   const oldZoom = canvasZoom;
   const clamped = Math.max(0.4, Math.min(3.5, newZoom));
@@ -924,7 +928,7 @@ function setupFloorplan() {
       return;
     }
 
-    if (isDrawing || activeResizeHandle || isPanning) {
+    if (isDrawing || activeResizeHandle || isDraggingBadge || isPanning) {
       e.preventDefault();
       handleCanvasMouseMove(e);
     }
@@ -934,7 +938,7 @@ function setupFloorplan() {
     if (e.touches.length < 2) {
       isPinching = false;
     }
-    if (isDrawing || isPanning) {
+    if (isDrawing || isDraggingBadge || isPanning) {
       handleCanvasMouseUp(e);
     }
   });
@@ -971,6 +975,45 @@ function setupFloorplan() {
   });
 }
 
+// Berechnet Position und Abmessungen der Raum-Beschriftungs-Plakette
+// Liegt standardmäßig AUßERHALB des Raumes (oberhalb oder unterhalb), damit der Raum frei für Möbel bleibt!
+function getRoomBadgeRect(room) {
+  const m2 = room.areaM2 || calculateAreaM2(room.width, room.height);
+  const wM = (room.width / PIXELS_PER_METER).toFixed(1);
+  const hM = (room.height / PIXELS_PER_METER).toFixed(1);
+  const titleText = `${room.name}`;
+  const subText = `${m2} m² (${wM} m × ${hM} m) • ${(room.surface || 'laminat').toUpperCase()}`;
+
+  const estTitleW = titleText.length * 8.5;
+  const estSubW = subText.length * 6.8;
+  const badgeW = Math.round(Math.max(160, Math.max(estTitleW, estSubW) + 28));
+  const badgeH = 40;
+
+  let bx, by;
+  if (room.badgeCustomX !== undefined && room.badgeCustomY !== undefined) {
+    bx = room.badgeCustomX;
+    by = room.badgeCustomY;
+  } else if (room.badgePos === 'inside') {
+    bx = room.x + 10;
+    by = room.y + 10;
+  } else if (room.badgePos === 'outside-bottom') {
+    bx = room.x;
+    by = room.y + room.height + 12;
+  } else if (room.badgePos === 'outside-left') {
+    bx = room.x - badgeW - 12;
+    by = room.y;
+  } else if (room.badgePos === 'outside-right') {
+    bx = room.x + room.width + 12;
+    by = room.y;
+  } else {
+    // Standard: 'outside-top' (AUßERHALB oberhalb des Raumes)
+    bx = room.x;
+    by = (room.y >= badgeH + 12) ? (room.y - badgeH - 10) : (room.y + room.height + 12);
+  }
+
+  return { x: bx, y: by, width: badgeW, height: badgeH, titleText, subText };
+}
+
 function findElementUnderPoint(pt) {
   const elements = appData.floors[currentFloor] || [];
   
@@ -994,10 +1037,19 @@ function findElementUnderPoint(pt) {
     }
   }
 
-  // 2. Falls kein Objekt angeklickt wurde: Räume prüfen
+  // 2. Falls kein Objekt angeklickt wurde: Räume & Raum-Plaketten prüfen
   for (let i = elements.length - 1; i >= 0; i--) {
     const el = elements[i];
     if (el.type === 'room') {
+      // Prüfen ob die Plakette (außerhalb oder innerhalb) angeklickt wurde
+      if (el.badgePos !== 'hidden') {
+        const bRect = getRoomBadgeRect(el);
+        if (pt.x >= bRect.x && pt.x <= bRect.x + bRect.width &&
+            pt.y >= bRect.y && pt.y <= bRect.y + bRect.height) {
+          return el;
+        }
+      }
+      // Prüfen ob die Raumfläche angeklickt wurde
       if (pt.x >= el.x && pt.x <= el.x + el.width && pt.y >= el.y && pt.y <= el.y + el.height) {
         return el;
       }
@@ -1152,8 +1204,8 @@ function handleCanvasMouseMove(evt) {
   const meterY = (pt.y / PIXELS_PER_METER).toFixed(1);
   document.getElementById('canvas-coords').textContent = `X: ${meterX} m, Y: ${meterY} m`;
 
-  // Cursor anpassen falls über Resize-Handle
-  if (selectedElement && !isDrawing) {
+  // Cursor anpassen falls über Resize-Handle oder Raum-Plakette
+  if (selectedElement && !isDrawing && !isDraggingBadge) {
     const handle = getHandleUnderPoint(pt, selectedElement);
     if (handle) {
       if (handle === 'nw' || handle === 'se') canvas.style.cursor = 'nwse-resize';
@@ -1161,8 +1213,34 @@ function handleCanvasMouseMove(evt) {
       else if (handle === 'n' || handle === 's') canvas.style.cursor = 'ns-resize';
       else if (handle === 'e' || handle === 'w') canvas.style.cursor = 'ew-resize';
     } else {
-      canvas.style.cursor = currentTool === 'room' || currentTool === 'wall' ? 'crosshair' : 'default';
+      let isOverBadge = false;
+      const floorElements = appData.floors[currentFloor] || [];
+      for (const el of floorElements) {
+        if (el.type === 'room' && el.badgePos !== 'hidden') {
+          const bRect = getRoomBadgeRect(el);
+          if (pt.x >= bRect.x && pt.x <= bRect.x + bRect.width && pt.y >= bRect.y && pt.y <= bRect.y + bRect.height) {
+            isOverBadge = true;
+            break;
+          }
+        }
+      }
+      canvas.style.cursor = isOverBadge ? 'move' : (currentTool === 'room' || currentTool === 'wall' ? 'crosshair' : 'default');
     }
+  }
+
+  // Raum-Plakette frei verschieben
+  if (isDraggingBadge && badgeDragRoom) {
+    canvas.style.cursor = 'move';
+    const dx = pt.x - dragStartX;
+    const dy = pt.y - dragStartY;
+    dragStartX = pt.x;
+    dragStartY = pt.y;
+
+    const bRect = getRoomBadgeRect(badgeDragRoom);
+    badgeDragRoom.badgeCustomX = (badgeDragRoom.badgeCustomX !== undefined ? badgeDragRoom.badgeCustomX : bRect.x) + dx;
+    badgeDragRoom.badgeCustomY = (badgeDragRoom.badgeCustomY !== undefined ? badgeDragRoom.badgeCustomY : bRect.y) + dy;
+    renderCanvas();
+    return;
   }
 
   if (isDrawing && activeResizeHandle && selectedElement) {
@@ -1258,6 +1336,10 @@ function handleCanvasMouseMove(evt) {
 
     selectedElement.x += dx;
     selectedElement.y += dy;
+    if (selectedElement.type === 'room' && selectedElement.badgeCustomX !== undefined) {
+      selectedElement.badgeCustomX += dx;
+      selectedElement.badgeCustomY += dy;
+    }
     renderCanvas();
   }
 }
@@ -1274,6 +1356,29 @@ function handleCanvasMouseDown(evt) {
       dragStartX = pt.x;
       dragStartY = pt.y;
       return;
+    }
+  }
+
+  // 1b. Prüfen, ob eine Raum-Beschriftungs-Plakette angeklickt wurde => Frei verschiebbar!
+  const floorElements = appData.floors[currentFloor] || [];
+  for (let i = floorElements.length - 1; i >= 0; i--) {
+    const el = floorElements[i];
+    if (el.type === 'room' && el.badgePos !== 'hidden') {
+      const bRect = getRoomBadgeRect(el);
+      if (pt.x >= bRect.x && pt.x <= bRect.x + bRect.width &&
+          pt.y >= bRect.y && pt.y <= bRect.y + bRect.height) {
+        selectedElement = el;
+        isDraggingBadge = true;
+        badgeDragRoom = el;
+        dragStartX = pt.x;
+        dragStartY = pt.y;
+        if (currentTool !== 'select' && window.switchTool) {
+          window.switchTool('select');
+        }
+        updateInspector();
+        renderCanvas();
+        return;
+      }
     }
   }
 
@@ -1320,6 +1425,14 @@ function handleCanvasMouseDown(evt) {
 function handleCanvasMouseUp(evt) {
   if (isPanning) {
     isPanning = false;
+    return;
+  }
+  if (isDraggingBadge) {
+    isDraggingBadge = false;
+    badgeDragRoom = null;
+    saveData();
+    updateInspector();
+    renderCanvas();
     return;
   }
   if (!isDrawing) return;
@@ -2398,45 +2511,56 @@ function renderCanvas() {
     ctx.lineWidth = Math.max(2, 3 / canvasZoom);
     ctx.strokeRect(room.x, room.y, room.width, room.height);
 
-    // Raum-Beschriftung & m² in einem klaren, kontrastreichen Plaketten-Hintergrund (immer perfekt lesbar!)
-    const m2 = room.areaM2 || calculateAreaM2(room.width, room.height);
     const wM = (room.width / PIXELS_PER_METER).toFixed(1);
     const hM = (room.height / PIXELS_PER_METER).toFixed(1);
 
-    const titleText = `${room.name}`;
-    const subText = `${m2} m² (${wM} m × ${hM} m) • ${room.surface.toUpperCase()}`;
+    // Raum-Beschriftung & m² in einer eleganten Plakette AUßERHALB des Raumes (Raum bleibt komplett frei für Möbel!)
+    if (room.badgePos !== 'hidden') {
+      const bRect = getRoomBadgeRect(room);
+      ctx.save();
+      ctx.font = 'bold 12.5px "Plus Jakarta Sans", sans-serif';
+      const actualW = Math.max(ctx.measureText(bRect.titleText).width, ctx.measureText(bRect.subText).width) + 26;
+      const bW = Math.max(bRect.width, actualW);
+      const bH = bRect.height;
+      const bx = bRect.x;
+      const by = bRect.y;
 
-    ctx.save();
-    ctx.font = 'bold 13px "Plus Jakarta Sans", sans-serif';
-    const badgeW = Math.max(ctx.measureText(titleText).width, ctx.measureText(subText).width) + 24;
-    const badgeH = 46;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      ctx.strokeStyle = (selectedElement === room) ? '#8c7355' : '#cbd5e1';
+      ctx.lineWidth = (selectedElement === room) ? 1.5 : 1;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 2;
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 1;
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
-    ctx.shadowBlur = 4;
-    ctx.shadowOffsetY = 2;
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(bx, by, bW, bH, 6);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.fillRect(bx, by, bW, bH);
+        ctx.strokeRect(bx, by, bW, bH);
+      }
+      ctx.shadowColor = 'transparent';
 
-    if (ctx.roundRect) {
-      ctx.beginPath();
-      ctx.roundRect(room.x + 10, room.y + 10, badgeW, badgeH, 6);
-      ctx.fill();
-      ctx.stroke();
-    } else {
-      ctx.fillRect(room.x + 10, room.y + 10, badgeW, badgeH);
-      ctx.strokeRect(room.x + 10, room.y + 10, badgeW, badgeH);
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 12.5px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(bRect.titleText, bx + 12, by + 17);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText(bRect.subText, bx + 12, by + 32);
+
+      // Falls dieser Raum ausgewählt ist: dezentes Verschiebe-Symbol
+      if (selectedElement === room) {
+        ctx.fillStyle = '#8c7355';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText('✥', bx + bW - 14, by + 16);
+      }
+
+      ctx.restore();
     }
-    ctx.shadowColor = 'transparent';
-
-    ctx.fillStyle = '#1e293b';
-    ctx.font = 'bold 13px "Plus Jakarta Sans", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(titleText, room.x + 18, room.y + 28);
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
-    ctx.fillText(subText, room.x + 18, room.y + 45);
 
     // Deutliche Maßangaben an den Wandkanten (Oben: Breite & Links: Länge)
     ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
@@ -2447,11 +2571,30 @@ function renderCanvas() {
     const wBadge = `${wM} m`;
     ctx.font = 'bold 11px sans-serif';
     const wBadgeW = ctx.measureText(wBadge).width + 16;
-    ctx.fillRect(room.x + (room.width - wBadgeW) / 2, room.y - 18, wBadgeW, 16);
-    ctx.strokeRect(room.x + (room.width - wBadgeW) / 2, room.y - 18, wBadgeW, 16);
-    ctx.fillStyle = '#0f172a';
-    ctx.textAlign = 'center';
-    ctx.fillText(`⟵ ${wBadge} ⟶`, room.x + room.width / 2, room.y - 6);
+    
+    // Prüfen ob die Raum-Plakette oberhalb liegt und mit dem Maß-Badge kollidieren könnte
+    const bRect = getRoomBadgeRect(room);
+    const badgeIsTop = (room.badgePos !== 'hidden' && bRect.y < room.y && (bRect.y + bRect.height) >= room.y - 25);
+    
+    let drawWidthBadge = true;
+    let wBadgeX = room.x + (room.width - wBadgeW) / 2;
+    if (badgeIsTop) {
+      if (room.width < bRect.width + wBadgeW + 30) {
+        // Bei schmaleren Räumen ist das Breitenmaß bereits in der Plakette enthalten
+        drawWidthBadge = false;
+      } else {
+        // Harmonisch rechts neben der Plakette positionieren
+        wBadgeX = Math.max(room.x + bRect.width + 15, room.x + (room.width - wBadgeW) / 2);
+      }
+    }
+
+    if (drawWidthBadge) {
+      ctx.fillRect(wBadgeX, room.y - 18, wBadgeW, 16);
+      ctx.strokeRect(wBadgeX, room.y - 18, wBadgeW, 16);
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.fillText(`⟵ ${wBadge} ⟶`, wBadgeX + wBadgeW / 2, room.y - 6);
+    }
 
     // Links: Länge
     const hBadge = `${hM} m`;
@@ -2460,6 +2603,7 @@ function renderCanvas() {
     ctx.fillRect(room.x - hBadgeW - 6, room.y + (room.height - 16) / 2, hBadgeW, 16);
     ctx.strokeRect(room.x - hBadgeW - 6, room.y + (room.height - 16) / 2, hBadgeW, 16);
     ctx.fillStyle = '#0f172a';
+    ctx.textAlign = 'center';
     ctx.fillText(hBadge, room.x - hBadgeW / 2 - 6, room.y + room.height / 2 + 4);
 
     ctx.restore();
@@ -2887,6 +3031,23 @@ function updateInspector() {
         <input type="text" id="insp-name" value="${el.name}">
       </div>
 
+      <div class="inspector-field" style="margin-top:0.4rem;">
+        <label>🏷️ Raum-Beschriftung auf Plan</label>
+        <select id="insp-room-badge-pos" class="select-input">
+          <option value="outside-top" ${(!el.badgePos || el.badgePos === 'outside-top') ? 'selected' : ''}>⬆️ Außerhalb oben (Standard – Raum frei)</option>
+          <option value="outside-bottom" ${el.badgePos === 'outside-bottom' ? 'selected' : ''}>⬇️ Außerhalb unten</option>
+          <option value="outside-left" ${el.badgePos === 'outside-left' ? 'selected' : ''}>⬅️ Außerhalb links</option>
+          <option value="outside-right" ${el.badgePos === 'outside-right' ? 'selected' : ''}>➡️ Außerhalb rechts</option>
+          <option value="inside" ${el.badgePos === 'inside' ? 'selected' : ''}>🔲 Innerhalb des Raumes (Ecke)</option>
+          <option value="hidden" ${el.badgePos === 'hidden' ? 'selected' : ''}>🚫 Beschriftung ausblenden</option>
+        </select>
+        ${(el.badgeCustomX !== undefined && el.badgeCustomY !== undefined) ? `
+          <button id="btn-reset-badge-pos" class="btn btn-sm btn-ghost" style="font-size:0.75rem; margin-top:0.3rem; padding:2px; color:var(--primary);">
+            ↺ Position der Beschriftung zurücksetzen
+          </button>
+        ` : ''}
+      </div>
+
       <div class="inspector-field">
         <label>Fläche (m² variabel)</label>
         <div style="display:flex; align-items:center; gap:0.5rem;">
@@ -2938,6 +3099,30 @@ function updateInspector() {
     bindScaleButtons(el);
     bindPositionAndNudgeEvents(el);
     bindTextureControlEvents(el);
+
+    const badgePosSelect = document.getElementById('insp-room-badge-pos');
+    if (badgePosSelect) {
+      badgePosSelect.addEventListener('change', (e) => {
+        el.badgePos = e.target.value;
+        delete el.badgeCustomX;
+        delete el.badgeCustomY;
+        saveData();
+        renderCanvas();
+        updateInspector();
+      });
+    }
+
+    const resetBadgeBtn = document.getElementById('btn-reset-badge-pos');
+    if (resetBadgeBtn) {
+      resetBadgeBtn.addEventListener('click', () => {
+        delete el.badgeCustomX;
+        delete el.badgeCustomY;
+        el.badgePos = 'outside-top';
+        saveData();
+        renderCanvas();
+        updateInspector();
+      });
+    }
 
     document.getElementById('insp-name').addEventListener('input', (e) => {
       el.name = e.target.value;

@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>CleanHome – Dein Reinigungs- & Haushaltsassistent mit 2D/3D Planer</title>
   
   <!-- PWA & Mobile App Unterstützung (iOS & Android) -->
@@ -43,27 +43,27 @@
 
     <!-- Navigation Bar -->
     <nav class="main-nav">
-      <button class="nav-tab active" data-tab="tab-planner">
+      <button class="nav-tab active" data-tab="tab-planner" title="Putz- & Terminplaner">
         <span class="icon">📅</span>
-        <span class="tab-label">Putzplan</span>
+        <span class="tab-label">Putz</span>
         <span id="badge-due" class="badge">0</span>
       </button>
-      <button class="nav-tab" data-tab="tab-floorplan">
+      <button class="nav-tab" data-tab="tab-floorplan" title="2D & 3D Raumplaner">
         <span class="icon">🏠</span>
-        <span class="tab-label">2D/3D Planer</span>
+        <span class="tab-label">Planer</span>
       </button>
-      <button class="nav-tab" data-tab="tab-plants">
+      <button class="nav-tab" data-tab="tab-plants" title="Pflanzenmanager">
         <span class="icon">🌿</span>
         <span class="tab-label">Pflanzen</span>
         <span id="badge-plants" class="badge">0</span>
       </button>
-      <button class="nav-tab" data-tab="tab-shopping">
+      <button class="nav-tab" data-tab="tab-shopping" title="Einkaufsliste">
         <span class="icon">🛒</span>
         <span class="tab-label">Einkauf</span>
       </button>
-      <button class="nav-tab" data-tab="tab-stains">
+      <button class="nav-tab" data-tab="tab-stains" title="Flecken- & Putztipps">
         <span class="icon">💡</span>
-        <span class="tab-label">Flecken</span>
+        <span class="tab-label">Tipps</span>
       </button>
     </nav>
 
@@ -687,6 +687,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Schwebender Button: Jederzeit sofort nach oben scrollen -->
+  <button id="btn-scroll-top" class="floating-scroll-btn" title="Nach oben scrollen">▲</button>
 
   <script src="app.js"></script>
 </body>

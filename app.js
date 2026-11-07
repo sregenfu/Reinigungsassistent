@@ -361,6 +361,7 @@ function setupNavigation() {
       const targetPane = document.getElementById(targetId);
       if (targetPane) {
         targetPane.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         if (targetId === 'tab-floorplan') {
           if (activeViewMode === '3d') {
             initThree3D();
@@ -372,6 +373,25 @@ function setupNavigation() {
       }
     });
   });
+
+  // Schwebender Nach-Oben-Scroll-Button
+  const btnScrollTop = document.getElementById('btn-scroll-top');
+  if (btnScrollTop) {
+    btnScrollTop.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 160) {
+        btnScrollTop.style.opacity = '1';
+        btnScrollTop.style.pointerEvents = 'auto';
+      } else {
+        btnScrollTop.style.opacity = '0';
+        btnScrollTop.style.pointerEvents = 'none';
+      }
+    }, { passive: true });
+    btnScrollTop.style.opacity = '0';
+    btnScrollTop.style.pointerEvents = 'none';
+  }
 
   // 2D / 3D Mode Selector
   const modeBtns = document.querySelectorAll('.btn-viewmode');
@@ -732,18 +752,45 @@ function setupFloorplan() {
   canvas.addEventListener('mousedown', handleCanvasMouseDown);
   window.addEventListener('mouseup', handleCanvasMouseUp);
 
-  canvas.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    handleCanvasMouseMove(e);
+  // Intelligente Touch-Events: Scrollen auf Mobilgeräten wird NICHT blockiert,
+  // es sei denn, der Nutzer zeichnet aktiv einen Raum/Wand oder zieht einen Griff/Möbelstück!
+  canvas.addEventListener('touchstart', (e) => {
+    if (currentTool === 'room' || currentTool === 'wall') {
+      e.preventDefault();
+      handleCanvasMouseDown(e);
+      return;
+    }
+
+    const pt = getCanvasPoint(e);
+    const hitHandle = selectedElement ? getHandleUnderPoint(pt, selectedElement) : null;
+    let hitElement = null;
+    const elements = appData.floors[currentFloor] || [];
+    for (let i = elements.length - 1; i >= 0; i--) {
+      const el = elements[i];
+      if (el.type === 'plant') {
+        if (Math.hypot(el.x - pt.x, el.y - pt.y) <= el.radius + 6) { hitElement = el; break; }
+      } else {
+        if (pt.x >= el.x && pt.x <= el.x + el.width && pt.y >= el.y && pt.y <= el.y + el.height) { hitElement = el; break; }
+      }
+    }
+
+    if (hitHandle || hitElement) {
+      e.preventDefault();
+      handleCanvasMouseDown(e);
+    }
   }, { passive: false });
 
-  canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    handleCanvasMouseDown(e);
+  canvas.addEventListener('touchmove', (e) => {
+    if (isDrawing || activeResizeHandle) {
+      e.preventDefault();
+      handleCanvasMouseMove(e);
+    }
   }, { passive: false });
 
   window.addEventListener('touchend', (e) => {
-    handleCanvasMouseUp(e);
+    if (isDrawing) {
+      handleCanvasMouseUp(e);
+    }
   });
 
   // Auswahlpool Klick-Events (Möbel & Elemente hinzufügen)

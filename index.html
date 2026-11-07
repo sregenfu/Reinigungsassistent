@@ -74,6 +74,21 @@
       <section id="tab-planner" class="tab-pane active">
         <div class="planner-grid">
           <div class="tasks-column">
+            <!-- Interaktiver Kalender für Putztermine -->
+            <div class="section-card calendar-card">
+              <div class="card-header">
+                <h2>📅 Putz- & Terminkalender</h2>
+                <div class="cal-nav-controls">
+                  <button id="btn-cal-prev" class="btn btn-sm btn-secondary" title="Vormonat">◀</button>
+                  <span id="cal-month-title" class="cal-month-heading">November 2026</span>
+                  <button id="btn-cal-next" class="btn btn-sm btn-secondary" title="Nächster Monat">▶</button>
+                  <button id="btn-cal-today" class="btn btn-sm btn-ghost">Heute</button>
+                </div>
+              </div>
+              <div id="cleaning-calendar" class="calendar-grid-container"></div>
+              <div id="cal-selected-day-details" class="cal-day-details" style="display:none;"></div>
+            </div>
+
             <div class="section-card">
               <div class="card-header">
                 <h2>Heute fällige Aufgaben</h2>
@@ -138,14 +153,20 @@
                     </select>
                   </div>
                   <div class="form-group">
-                    <label for="task-interval">Intervall (Tage)</label>
-                    <input type="number" id="task-interval" min="1" value="7" required>
+                    <label for="task-date">Geplanter Tag / Ausführung ab</label>
+                    <input type="date" id="task-date" required>
                   </div>
                 </div>
 
-                <div class="form-group">
-                  <label for="task-notes">Reinigungstipp / Hinweis</label>
-                  <input type="text" id="task-notes" placeholder="z.B. pH-neutrales Wischmittel, nebelfeucht">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="task-interval">Intervall (Tage)</label>
+                    <input type="number" id="task-interval" min="1" value="7" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="task-notes">Reinigungstipp / Hinweis</label>
+                    <input type="text" id="task-notes" placeholder="z.B. pH-neutrales Wischmittel, nebelfeucht">
+                  </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary full-width">Aufgabe speichern</button>
@@ -244,7 +265,7 @@
                   </div>
                   <div class="catalog-item" data-type="tuer" data-w="70" data-h="20" data-label="Zimmertür">
                     <div class="cat-icon">🚪</div>
-                    <span>Zimmertür (innen/außen frei wählbar)</span>
+                    <span>Zimmertür (innen/außen frei)</span>
                   </div>
                   <div class="catalog-item" data-type="treppe_auf" data-w="180" data-h="90" data-label="Treppe aufwärts (ins nächste OG)">
                     <div class="cat-icon">🪜</div>
@@ -261,10 +282,14 @@
                 </div>
               </div>
 
-              <!-- Wohnzimmer -->
+              <!-- Wohnzimmer & Entspannung -->
               <div class="catalog-section">
-                <h4>🛋️ Wohnzimmer</h4>
+                <h4>🛋️ Wohnzimmer & Entspannung</h4>
                 <div class="catalog-grid">
+                  <div class="catalog-item" data-type="couch_u" data-w="260" data-h="180" data-label="U-förmige Wohnlandschaft">
+                    <div class="cat-icon">🛋️</div>
+                    <span>U-Couch Wohnlandschaft</span>
+                  </div>
                   <div class="catalog-item" data-type="couch_eck" data-w="240" data-h="160" data-label="Große Eck-Couch (L-Form)">
                     <div class="cat-icon">🛋️</div>
                     <span>L-Eckcouch (Designer)</span>
@@ -281,16 +306,32 @@
                     <div class="cat-icon">📺</div>
                     <span>TV Sideboard</span>
                   </div>
+                  <div class="catalog-item" data-type="sitzkissen" data-w="55" data-h="55" data-label="Bodenkissen / Pouf">
+                    <div class="cat-icon">🧘</div>
+                    <span>Sitzkissen / Pouf</span>
+                  </div>
+                  <div class="catalog-item" data-type="kratzbaum" data-w="65" data-h="65" data-label="Katzen-Kratzbaum">
+                    <div class="cat-icon">🐱</div>
+                    <span>Kratzbaum</span>
+                  </div>
+                  <div class="catalog-item" data-type="staffelei" data-w="60" data-h="60" data-label="Künstler-Staffelei">
+                    <div class="cat-icon">🎨</div>
+                    <span>Staffelei</span>
+                  </div>
                 </div>
               </div>
 
-              <!-- Essbereich & Küche -->
+              <!-- Küche & Essen -->
               <div class="catalog-section">
-                <h4>🍽️ Essen & Küche</h4>
+                <h4>🍽️ Essen & Küchenelemente</h4>
                 <div class="catalog-grid">
                   <div class="catalog-item" data-type="tisch_gross" data-w="190" data-h="100" data-label="Esstisch mit 6 Stühlen">
                     <div class="cat-icon">🍽️</div>
                     <span>Esstisch + 6 Stühle</span>
+                  </div>
+                  <div class="catalog-item" data-type="esstisch_bank" data-w="170" data-h="40" data-label="Sitzbank am Esstisch">
+                    <div class="cat-icon">🪑</div>
+                    <span>Sitzbank am Esstisch</span>
                   </div>
                   <div class="catalog-item" data-type="tisch_rund" data-w="110" data-h="110" data-label="Runder Esstisch + 4 Stühle">
                     <div class="cat-icon">🪑</div>
@@ -300,20 +341,78 @@
                     <div class="cat-icon">🍳</div>
                     <span>Kücheninsel mit Herd</span>
                   </div>
-                  <div class="catalog-item" data-type="kuechenzeile" data-w="240" data-h="65" data-label="Küchenzeile">
+                  <div class="catalog-item" data-type="kuechenzeile" data-w="240" data-h="65" data-label="Küchenzeile Schränke">
                     <div class="cat-icon">🧊</div>
-                    <span>Küchenzeile Schränke</span>
+                    <span>Küchenzeile</span>
+                  </div>
+                  <div class="catalog-item" data-type="kuehlschrank" data-w="75" data-h="65" data-label="Kühlschrank (Side-by-Side)">
+                    <div class="cat-icon">❄️</div>
+                    <span>Kühlschrank</span>
+                  </div>
+                  <div class="catalog-item" data-type="ofen" data-w="65" data-h="65" data-label="Ofen & Herdblock">
+                    <div class="cat-icon">🔥</div>
+                    <span>Ofen & Herd</span>
+                  </div>
+                  <div class="catalog-item" data-type="kuechenschrank" data-w="90" data-h="60" data-label="Küchen-Unterschrank">
+                    <div class="cat-icon">🗄️</div>
+                    <span>Küchenschrank</span>
+                  </div>
+                  <div class="catalog-item" data-type="spuele_schrank" data-w="90" data-h="60" data-label="Spüle mit Unterschrank">
+                    <div class="cat-icon">🚰</div>
+                    <span>Spülenschrank</span>
                   </div>
                 </div>
               </div>
 
-              <!-- Bad & Gäste-WC -->
+              <!-- Schlafen & Schränke -->
               <div class="catalog-section">
-                <h4>🚽 Bad & Gäste-WC</h4>
+                <h4>🛏️ Schlafen & Schränke</h4>
+                <div class="catalog-grid">
+                  <div class="catalog-item" data-type="bett_doppel" data-w="190" data-h="200" data-label="Komfort-Doppelbett">
+                    <div class="cat-icon">🛏️</div>
+                    <span>Doppelbett</span>
+                  </div>
+                  <div class="catalog-item" data-type="nachtschrank" data-w="45" data-h="40" data-label="Nachtschränkchen">
+                    <div class="cat-icon">🏮</div>
+                    <span>Nachtschränkchen</span>
+                  </div>
+                  <div class="catalog-item" data-type="kleiderschrank" data-w="200" data-h="65" data-label="Großer Kleiderschrank">
+                    <div class="cat-icon">🚪</div>
+                    <span>Kleiderschrank</span>
+                  </div>
+                  <div class="catalog-item" data-type="regal" data-w="140" data-h="40" data-label="Bücherregal / Raumteiler">
+                    <div class="cat-icon">📚</div>
+                    <span>Bücherregal</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Büro & Arbeitsplatz -->
+              <div class="catalog-section">
+                <h4>💻 Büro & Arbeitsplatz</h4>
+                <div class="catalog-grid">
+                  <div class="catalog-item" data-type="schreibtisch" data-w="140" data-h="75" data-label="Schreibtisch mit Stuhl">
+                    <div class="cat-icon">🖥️</div>
+                    <span>Schreibtisch</span>
+                  </div>
+                  <div class="catalog-item" data-type="computer" data-w="120" data-h="70" data-label="Computer-Arbeitsplatz">
+                    <div class="cat-icon">💻</div>
+                    <span>Computer & Monitor</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Bad & Wellness -->
+              <div class="catalog-section">
+                <h4>🚽 Bad & Wellness</h4>
                 <div class="catalog-grid">
                   <div class="catalog-item" data-type="waschtisch" data-w="90" data-h="55" data-label="Waschtisch mit Armatur">
                     <div class="cat-icon">🚰</div>
                     <span>Waschtisch modern</span>
+                  </div>
+                  <div class="catalog-item" data-type="badewanne" data-w="170" data-h="80" data-label="Komfort-Badewanne">
+                    <div class="cat-icon">🛁</div>
+                    <span>Badewanne</span>
                   </div>
                   <div class="catalog-item" data-type="wc_haenge" data-w="60" data-h="65" data-label="Gäste-WC (Hänge-WC)">
                     <div class="cat-icon">🚽</div>
@@ -323,12 +422,43 @@
                     <div class="cat-icon">🚿</div>
                     <span>Glasdusche</span>
                   </div>
+                  <div class="catalog-item" data-type="handtuchheizung" data-w="60" data-h="16" data-label="Handtuchheizkörper">
+                    <div class="cat-icon">♨️</div>
+                    <span>Handtuchheizung</span>
+                  </div>
                 </div>
               </div>
 
-              <!-- Pflanzen & Teppiche -->
+              <!-- Deko & Haustechnik -->
               <div class="catalog-section">
-                <h4>🌿 Pflanzen & Teppiche</h4>
+                <h4>🖼️ Haustechnik & Deko</h4>
+                <div class="catalog-grid">
+                  <div class="catalog-item" data-type="heizkoerper" data-w="90" data-h="16" data-label="Wandheizkörper">
+                    <div class="cat-icon">♨️</div>
+                    <span>Heizkörper</span>
+                  </div>
+                  <div class="catalog-item" data-type="spiegel" data-w="80" data-h="14" data-label="Wandspiegel">
+                    <div class="cat-icon">🪞</div>
+                    <span>Spiegel</span>
+                  </div>
+                  <div class="catalog-item" data-type="wandbild" data-w="90" data-h="14" data-label="Wandbild / Gemälde">
+                    <div class="cat-icon">🖼️</div>
+                    <span>Bilder / Kunst</span>
+                  </div>
+                  <div class="catalog-item" data-type="teppich_insel" data-w="220" data-h="160" data-label="Kuschel-Teppichinsel">
+                    <div class="cat-icon">🧶</div>
+                    <span>Teppich (rechteckig)</span>
+                  </div>
+                  <div class="catalog-item" data-type="teppich_rund" data-w="140" data-h="140" data-label="Runder Designer-Teppich">
+                    <div class="cat-icon">⭕</div>
+                    <span>Runder Teppich</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Pflanzen -->
+              <div class="catalog-section">
+                <h4>🌿 Zimmerpflanzen</h4>
                 <div class="catalog-grid">
                   <div class="catalog-item" data-type="pflanze_gross" data-w="60" data-h="60" data-label="Große Monstera">
                     <div class="cat-icon">🪴</div>
@@ -338,9 +468,13 @@
                     <div class="cat-icon">🌳</div>
                     <span>Ficus Großbaum</span>
                   </div>
-                  <div class="catalog-item" data-type="teppich_insel" data-w="220" data-h="160" data-label="Wohnbereich Teppich">
-                    <div class="cat-icon">🧶</div>
-                    <span>Kuschel-Teppichinsel</span>
+                  <div class="catalog-item" data-type="pflanze_elefantenfuss" data-w="55" data-h="55" data-label="Elefantenfuß (Beaucarnea)">
+                    <div class="cat-icon">🌴</div>
+                    <span>Elefantenfuß</span>
+                  </div>
+                  <div class="catalog-item" data-type="pflanze_drachenpalme" data-w="50" data-h="50" data-label="Drachenpalme (Dracaena)">
+                    <div class="cat-icon">🪴</div>
+                    <span>Drachenpalme</span>
                   </div>
                 </div>
               </div>
@@ -692,6 +826,73 @@
           <button id="btn-cancel-texture" class="btn btn-secondary">Abbrechen</button>
           <button id="btn-apply-texture" class="btn btn-primary">✨ Als Textur übernehmen</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Aufgabe bearbeiten -->
+  <div id="modal-edit-task" class="modal-backdrop" style="display:none;">
+    <div class="modal-card" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3>✏️ Putzaufgabe bearbeiten</h3>
+        <button id="btn-close-edit-task" class="btn btn-sm btn-ghost">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-edit-task" class="form-stack">
+          <input type="hidden" id="edit-task-id">
+          <div class="form-group">
+            <label for="edit-task-title">Titel / Tätigkeit</label>
+            <input type="text" id="edit-task-title" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="edit-task-floor">Etage</label>
+              <select id="edit-task-floor">
+                <option value="EG">EG</option>
+                <option value="1.OG">1. OG</option>
+                <option value="2.OG">2. OG / DG</option>
+                <option value="Treppe">Treppe (über alle 3 Etagen)</option>
+                <option value="Gesamtes Haus">Gesamtes Haus</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="edit-task-room">Raum / Bereich</label>
+              <input type="text" id="edit-task-room">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="edit-task-surface">Bodenbelag / Material</label>
+              <select id="edit-task-surface">
+                <option value="alle">Gemischt / Neutral</option>
+                <option value="Fliesen">Fliesen (feucht wischen)</option>
+                <option value="Laminat">Laminat (nebelfeucht)</option>
+                <option value="Teppich">Teppich (saugen/shampoonieren)</option>
+                <option value="Glas">Fenster / Glasflächen</option>
+                <option value="Holz">Holzstufen (Treppe)</option>
+                <option value="Sanitaer">Sanitärkeramik (Gäste-WC)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="edit-task-date">Nächster fälliger Tag</label>
+              <input type="date" id="edit-task-date" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="edit-task-interval">Intervall (Tage)</label>
+              <input type="number" id="edit-task-interval" min="1" value="7" required>
+            </div>
+            <div class="form-group">
+              <label for="edit-task-notes">Hinweis / Putztipp</label>
+              <input type="text" id="edit-task-notes">
+            </div>
+          </div>
+          <div class="modal-footer" style="padding:0; margin-top:1rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+            <button type="button" id="btn-cancel-edit-task" class="btn btn-secondary">Abbrechen</button>
+            <button type="submit" class="btn btn-primary">💾 Änderungen speichern</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

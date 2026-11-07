@@ -309,6 +309,77 @@ const STAINS_DATABASE = [
       '4. Nach einigen Stunden absaugen.'
     ],
     warning: 'Niemals ammoniakhaltige Reiniger verwenden, da dies Haustiere erst recht animiert.'
+  },
+  {
+    id: 'blut',
+    title: 'Blutflecken (auf Teppich, Polster & Matratzen)',
+    surfaces: ['Teppich', 'Polster', 'Laminat', 'Fliesen'],
+    firstAid: 'Ausschließlich EISKALTES Wasser verwenden! Niemals warmes oder heißes Wasser!',
+    remedy: 'Kaltes Salzwasser, Gallseife oder Natron-Paste',
+    steps: [
+      '1. Frisches Blut sofort mit eiskaltem Wasser und Küchenpapier vorsichtig von außen nach innen abtupfen.',
+      '2. Eingetrocknetes Blut: Paste aus 2 EL Salz oder Natron mit kaltem Wasser anrühren und 30 Min. einwirken lassen.',
+      '3. Bei Teppich/Polster: Mit einem kalten, feuchten Tuch und Gallseife sanft austupfen.',
+      '4. Auf hellen Stoffen kann 3%iges Wasserstoffperoxid aufgetupft werden, um letzte Ränder restlos zu bleichen.'
+    ],
+    warning: 'WICHTIG: Warmes Wasser über 30°C lässt das Bluteiweiß gerinnen und bindet es dauerhaft in die Faser!'
+  },
+  {
+    id: 'schimmel',
+    title: 'Schimmel & Stockflecken (Silikon, Fugen, Wände)',
+    surfaces: ['Fliesen', 'Laminat'],
+    firstAid: 'Sporen nicht trocken aufwirbeln! Bei der Reinigung lüften und Handschuhe tragen.',
+    remedy: '70-80% Reinigungsalkohol (Isopropanol), Wasserstoffperoxid oder Natron-Paste',
+    steps: [
+      '1. Fugen und Silikon im Bad mit 70% Isopropanol besprühen (tötet Schimmelpilze und Sporen zuverlässig ab).',
+      '2. 20-30 Minuten einwirken lassen.',
+      '3. Bei hartnäckigem Schwarzschimmel auf Fugen: Paste aus Natron und etwas Wasser auftragen und mit alter Zahnbürste scheuern.',
+      '4. Mit klarem Wasser abspülen und Fugen gründlich trockenwischen.',
+      '5. Vorbeugung: Nach jedem Duschen Duschwand und Fliesen mit Abzieher trocknen und 10 Min. stoßlüften.'
+    ],
+    warning: 'Essig NICHT auf mineralischen Putz- oder Kalkwänden anwenden – Essigsäure neutralisiert sich dort und hinterlässt Nährstoffe für noch mehr Schimmel!'
+  },
+  {
+    id: 'rost',
+    title: 'Rostflecken (auf Fliesen, Stein & Teppich)',
+    surfaces: ['Fliesen', 'Teppich', 'Laminat'],
+    firstAid: 'Nicht scheuern, um Kratzer auf Fliesen zu vermeiden.',
+    remedy: 'Zitronensaft mit Speisesalz oder Weinstein',
+    steps: [
+      '1. Roststelle mit Speisesalz bedecken und frischen Zitronensaft darauf träufeln.',
+      '2. Ca. 1-2 Stunden in der Sonne oder warm einwirken lassen.',
+      '3. Bei Fliesen: Mit einem feuchten Tuch abwischen und gründlich nachspülen.',
+      '4. Bei Teppich: Salz absaugen und Reste mit einem feuchten Tuch austupfen.'
+    ],
+    warning: 'Bei säureempfindlichem Naturstein (Marmor, Travertin) keine Zitrone verwenden, sondern pH-neutralen Rostumwandler.'
+  },
+  {
+    id: 'kugelschreiber',
+    title: 'Kugelschreiber & Tinte',
+    surfaces: ['Laminat', 'Fliesen', 'Polster', 'Teppich'],
+    firstAid: 'Nicht verwischen! Tinte sofort mit trockenem Tuch abheben.',
+    remedy: 'Reinigungsalkohol / Isopropanol oder Haarspray',
+    steps: [
+      '1. Auf Laminat/Fliesen: Etwas Reinigungsalkohol auf ein Wattepad geben und Striche vorsichtig wegreiben.',
+      '2. Auf Polster/Teppich: Haarspray aufsprühen (der Alkohol löst die Lösungsmittel der Tinte), 3 Minuten warten.',
+      '3. Mit saugfähigem Küchentuch abtupfen und den Vorgang bei Bedarf wiederholen.',
+      '4. Abschließend mit lauwarmem Wasser und mildem Spülmittel nachreinigen.'
+    ],
+    warning: 'Vorher an verdeckter Stelle prüfen, ob der Bezugsstoff farbecht ist.'
+  },
+  {
+    id: 'kaugummi',
+    title: 'Kaugummi (festgetreten im Teppich oder Polster)',
+    surfaces: ['Teppich', 'Polster', 'Laminat'],
+    firstAid: 'Kaugummi niemals warm versuchen abzulösen – das zieht Fäden!',
+    remedy: 'Eisspray oder Eiswürfel im Plastikbeutel',
+    steps: [
+      '1. Eiswürfel in einen Gefrierbeutel füllen und für 10-15 Min. direkt auf den Kaugummi drücken.',
+      '2. Wenn der Kaugummi glashart gefroren ist, mit der Kante eines Löffels vorsichtig zerbröckeln.',
+      '3. Die gefrorenen Stücke sofort mit dem Staubsauger absaugen, bevor sie wieder weich werden.',
+      '4. Eventuelle Klebereste mit ein wenig Reinigungsbenzin oder Gallseife sanft entfernen.'
+    ],
+    warning: 'Keine scharfen Messer verwenden, um Teppichfasern nicht abzuschneiden.'
   }
 ];
 
@@ -472,8 +543,11 @@ function setupNavigation() {
 }
 
 // ----------------------------------------------------
-// 1. PUTZ- & TERMINPLANER LOGIK
+// 1. PUTZ- & TERMINPLANER LOGIK & INTERAKTIVER KALENDER
 // ----------------------------------------------------
+let calCurrentDate = new Date();
+let calSelectedDateStr = null;
+
 function getDaysDifference(targetDate) {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -545,13 +619,15 @@ function renderTasks() {
             <span class="tag tag-floor">📍 ${task.floor} • ${task.room || 'Allgemein'}</span>
             <span class="tag tag-surface">🧹 ${task.surface || 'Boden'}</span>
             <span class="tag">⏱️ Alle ${task.intervalDays} Tage</span>
+            <span class="tag" style="background:#f1ece4; color:#645340;">📅 Fällig: ${new Date(nextDue).toLocaleDateString('de-DE')}</span>
             ${task.notes ? `<span class="tag" style="background:#f1f5f9; color:#475569;" title="${task.notes}">ℹ️ ${task.notes}</span>` : ''}
           </div>
         </div>
       </div>
       <div class="task-status">
         <div class="due-label ${dueClass}">${dueText}</div>
-        <div class="task-actions" style="margin-top: 4px; justify-content: flex-end;">
+        <div class="task-actions" style="margin-top: 4px; display:flex; gap:4px; justify-content: flex-end;">
+          <button class="btn btn-sm btn-ghost btn-edit-task" data-id="${task.id}" title="Aufgabe bearbeiten">✏️</button>
           <button class="btn btn-sm btn-ghost btn-del-task" data-id="${task.id}" title="Löschen">🗑️</button>
         </div>
       </div>
@@ -563,6 +639,10 @@ function renderTasks() {
         saveData();
         renderTasks();
       }
+    });
+
+    taskEl.querySelector('.btn-edit-task').addEventListener('click', () => {
+      openEditTaskModal(task);
     });
 
     taskEl.querySelector('.btn-del-task').addEventListener('click', () => {
@@ -582,6 +662,9 @@ function renderTasks() {
           renderTasks();
         }
       });
+      clone.querySelector('.btn-edit-task').addEventListener('click', () => {
+        openEditTaskModal(task);
+      });
       clone.querySelector('.btn-del-task').addEventListener('click', () => {
         appData.tasks = appData.tasks.filter(t => t.id !== task.id);
         saveData();
@@ -598,13 +681,266 @@ function renderTasks() {
   }
 
   const badge = document.getElementById('badge-due');
-  badge.textContent = dueCount;
-  badge.style.display = dueCount > 0 ? 'inline-flex' : 'none';
+  if (badge) {
+    badge.textContent = dueCount;
+    badge.style.display = dueCount > 0 ? 'inline-flex' : 'none';
+  }
+
+  renderCleaningCalendar();
+}
+
+function renderCleaningCalendar() {
+  const container = document.getElementById('cleaning-calendar');
+  const titleEl = document.getElementById('cal-month-title');
+  if (!container || !titleEl) return;
+
+  const year = calCurrentDate.getFullYear();
+  const month = calCurrentDate.getMonth();
+
+  const monthNames = [
+    'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+  ];
+  titleEl.textContent = `${monthNames[month]} ${year}`;
+
+  const firstDayOfMonth = new Date(year, month, 1);
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+  const totalDays = lastDayOfMonth.getDate();
+
+  let startDayOfWeek = firstDayOfMonth.getDay();
+  if (startDayOfWeek === 0) startDayOfWeek = 7;
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  let html = `
+    <div class="cal-weekdays">
+      <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
+    </div>
+    <div class="cal-days-grid">
+  `;
+
+  // Vormonatstage
+  const prevMonthLastDay = new Date(year, month, 0).getDate();
+  for (let i = 1; i < startDayOfWeek; i++) {
+    const dayNum = prevMonthLastDay - (startDayOfWeek - 1 - i);
+    html += `<div class="cal-day-cell other-month"><span class="cal-day-num">${dayNum}</span></div>`;
+  }
+
+  // Tage des aktuellen Monats
+  for (let d = 1; d <= totalDays; d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const isToday = (dateStr === todayStr);
+    const isSelected = (dateStr === calSelectedDateStr);
+
+    const tasksForDay = appData.tasks.filter(t => {
+      const dueStr = calculateNextDueDate(t.lastDone, t.intervalDays).slice(0, 10);
+      return dueStr === dateStr;
+    });
+
+    let badgesHtml = '';
+    tasksForDay.forEach(t => {
+      const diff = getDaysDifference(calculateNextDueDate(t.lastDone, t.intervalDays));
+      let bClass = '';
+      if (diff < 0) bClass = 'overdue';
+      else if (diff === 0) bClass = 'due-today';
+      badgesHtml += `<div class="cal-task-badge ${bClass}" title="${t.title}">${t.title}</div>`;
+    });
+
+    html += `
+      <div class="cal-day-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-date="${dateStr}">
+        <span class="cal-day-num">${d}</span>
+        <div class="cal-tasks-dots">${badgesHtml}</div>
+      </div>
+    `;
+  }
+
+  // Folgemonatstage bis 35/42 voll
+  const totalRendered = (startDayOfWeek - 1) + totalDays;
+  const remaining = (7 - (totalRendered % 7)) % 7;
+  for (let j = 1; j <= remaining; j++) {
+    html += `<div class="cal-day-cell other-month"><span class="cal-day-num">${j}</span></div>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+
+  container.querySelectorAll('.cal-day-cell[data-date]').forEach(cell => {
+    cell.addEventListener('click', () => {
+      calSelectedDateStr = cell.dataset.date;
+      renderCleaningCalendar();
+      showCalendarDayDetails(calSelectedDateStr);
+    });
+  });
+}
+
+function showCalendarDayDetails(dateStr) {
+  const detailsEl = document.getElementById('cal-selected-day-details');
+  if (!detailsEl) return;
+
+  const d = new Date(dateStr);
+  const formattedDate = d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+
+  const tasksForDay = appData.tasks.filter(t => {
+    const dueStr = calculateNextDueDate(t.lastDone, t.intervalDays).slice(0, 10);
+    return dueStr === dateStr;
+  });
+
+  let taskListHtml = '';
+  if (tasksForDay.length === 0) {
+    taskListHtml = '<p class="muted-text" style="font-size:0.83rem;">Für diesen Tag sind aktuell keine Aufgaben geplant.</p>';
+  } else {
+    taskListHtml = tasksForDay.map(t => `
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:0.4rem 0.6rem; border-radius:6px; margin-bottom:0.35rem; border:1px solid var(--border);">
+        <div>
+          <strong>${t.title}</strong>
+          <span style="font-size:0.75rem; color:var(--text-muted); display:block;">📍 ${t.floor} (${t.room || 'Allgemein'}) • ${t.surface}</span>
+        </div>
+        <div style="display:flex; gap:4px;">
+          <button class="btn btn-sm btn-ghost btn-cal-edit" data-id="${t.id}" title="Bearbeiten">✏️</button>
+          <button class="btn btn-sm btn-primary btn-cal-done" data-id="${t.id}" title="Als erledigt markieren">✓ Erledigt</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  detailsEl.style.display = 'block';
+  detailsEl.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+      <h4 style="margin:0;">📅 Aufgaben am ${formattedDate}</h4>
+      <button id="btn-close-cal-details" class="btn btn-sm btn-ghost" style="padding:2px 6px;">✕</button>
+    </div>
+    ${taskListHtml}
+    <button id="btn-plan-for-day" class="btn btn-sm btn-secondary" style="margin-top:0.3rem;">➕ Aufgabe für diesen Tag planen</button>
+  `;
+
+  const btnClose = document.getElementById('btn-close-cal-details');
+  if (btnClose) {
+    btnClose.addEventListener('click', () => {
+      detailsEl.style.display = 'none';
+      calSelectedDateStr = null;
+      renderCleaningCalendar();
+    });
+  }
+
+  detailsEl.querySelectorAll('.btn-cal-done').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const task = appData.tasks.find(t => t.id === btn.dataset.id);
+      if (task) {
+        task.lastDone = new Date().toISOString();
+        saveData();
+        renderTasks();
+        showCalendarDayDetails(dateStr);
+      }
+    });
+  });
+
+  detailsEl.querySelectorAll('.btn-cal-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const task = appData.tasks.find(t => t.id === btn.dataset.id);
+      if (task) openEditTaskModal(task);
+    });
+  });
+
+  const btnPlan = document.getElementById('btn-plan-for-day');
+  if (btnPlan) {
+    btnPlan.addEventListener('click', () => {
+      document.getElementById('task-date').value = dateStr;
+      document.getElementById('task-title').focus();
+    });
+  }
+}
+
+function openEditTaskModal(task) {
+  const modal = document.getElementById('modal-edit-task');
+  if (!modal) return;
+  document.getElementById('edit-task-id').value = task.id;
+  document.getElementById('edit-task-title').value = task.title;
+  document.getElementById('edit-task-floor').value = task.floor;
+  document.getElementById('edit-task-room').value = task.room || '';
+  document.getElementById('edit-task-surface').value = task.surface || 'alle';
+  document.getElementById('edit-task-interval').value = task.intervalDays;
+  document.getElementById('edit-task-notes').value = task.notes || '';
+
+  const nextDue = calculateNextDueDate(task.lastDone, task.intervalDays).slice(0, 10);
+  document.getElementById('edit-task-date').value = nextDue;
+
+  modal.style.display = 'flex';
 }
 
 function setupTaskForm() {
   const form = document.getElementById('form-new-task');
   const floorFilter = document.getElementById('filter-floor-task');
+
+  // Standard-Datum für neue Aufgaben = Heute
+  const taskDateInput = document.getElementById('task-date');
+  if (taskDateInput) {
+    const today = new Date();
+    taskDateInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  }
+
+  // Kalender-Navigation
+  const btnPrev = document.getElementById('btn-cal-prev');
+  const btnNext = document.getElementById('btn-cal-next');
+  const btnToday = document.getElementById('btn-cal-today');
+
+  if (btnPrev) {
+    btnPrev.addEventListener('click', () => {
+      calCurrentDate.setMonth(calCurrentDate.getMonth() - 1);
+      renderCleaningCalendar();
+    });
+  }
+  if (btnNext) {
+    btnNext.addEventListener('click', () => {
+      calCurrentDate.setMonth(calCurrentDate.getMonth() + 1);
+      renderCleaningCalendar();
+    });
+  }
+  if (btnToday) {
+    btnToday.addEventListener('click', () => {
+      calCurrentDate = new Date();
+      calSelectedDateStr = `${calCurrentDate.getFullYear()}-${String(calCurrentDate.getMonth() + 1).padStart(2, '0')}-${String(calCurrentDate.getDate()).padStart(2, '0')}`;
+      renderCleaningCalendar();
+      showCalendarDayDetails(calSelectedDateStr);
+    });
+  }
+
+  // Modal Aufgabe bearbeiten
+  const editModal = document.getElementById('modal-edit-task');
+  const editForm = document.getElementById('form-edit-task');
+  const btnCloseEdit = document.getElementById('btn-close-edit-task');
+  const btnCancelEdit = document.getElementById('btn-cancel-edit-task');
+
+  if (btnCloseEdit) btnCloseEdit.addEventListener('click', () => { editModal.style.display = 'none'; });
+  if (btnCancelEdit) btnCancelEdit.addEventListener('click', () => { editModal.style.display = 'none'; });
+
+  if (editForm) {
+    editForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const id = document.getElementById('edit-task-id').value;
+      const task = appData.tasks.find(t => t.id === id);
+      if (!task) return;
+
+      task.title = document.getElementById('edit-task-title').value.trim();
+      task.floor = document.getElementById('edit-task-floor').value;
+      task.room = document.getElementById('edit-task-room').value.trim() || 'Allgemein';
+      task.surface = document.getElementById('edit-task-surface').value;
+      task.intervalDays = parseInt(document.getElementById('edit-task-interval').value, 10) || 7;
+      task.notes = document.getElementById('edit-task-notes').value.trim();
+
+      const chosenDateStr = document.getElementById('edit-task-date').value;
+      if (chosenDateStr) {
+        const targetD = new Date(chosenDateStr + 'T12:00:00');
+        const calculatedLastDone = new Date(targetD.getTime() - task.intervalDays * 24 * 60 * 60 * 1000);
+        task.lastDone = calculatedLastDone.toISOString();
+      }
+
+      saveData();
+      renderTasks();
+      editModal.style.display = 'none';
+      if (calSelectedDateStr) showCalendarDayDetails(calSelectedDateStr);
+    });
+  }
 
   floorFilter.addEventListener('change', renderTasks);
 
@@ -616,6 +952,14 @@ function setupTaskForm() {
     const surface = document.getElementById('task-surface').value;
     const intervalDays = parseInt(document.getElementById('task-interval').value, 10) || 7;
     const notes = document.getElementById('task-notes').value.trim();
+    const taskDateStr = (document.getElementById('task-date') || {}).value;
+
+    let lastDone = new Date().toISOString();
+    if (taskDateStr) {
+      const targetD = new Date(taskDateStr + 'T12:00:00');
+      const calculatedLastDone = new Date(targetD.getTime() - intervalDays * 24 * 60 * 60 * 1000);
+      lastDone = calculatedLastDone.toISOString();
+    }
 
     const newTask = {
       id: 't-' + Date.now(),
@@ -624,7 +968,7 @@ function setupTaskForm() {
       room,
       surface,
       intervalDays,
-      lastDone: new Date().toISOString(),
+      lastDone,
       notes
     };
 
@@ -632,6 +976,12 @@ function setupTaskForm() {
     saveData();
     renderTasks();
     form.reset();
+
+    // Reset date input back to today
+    if (taskDateInput) {
+      const today = new Date();
+      taskDateInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    }
   });
 }
 
@@ -1595,11 +1945,28 @@ function handleCanvasMouseUp(evt) {
         y,
         width: w,
         height: h,
-        areaM2: area
+        areaM2: area,
+        badgePos: 'outside-top'
+      };
+
+      // Automatisch Zimmertür an der Wand inklusive
+      const doorW = Math.min(70, Math.round(w * 0.35));
+      const newDoor = {
+        id: 'f-door-' + Date.now(),
+        type: 'furniture',
+        subType: 'tuer',
+        label: 'Zimmertür',
+        x: x + Math.round((w - doorW) / 2),
+        y: y + h - 10,
+        width: doorW,
+        height: 20,
+        swingIn: true,
+        hinge: 'left'
       };
 
       if (!appData.floors[currentFloor]) appData.floors[currentFloor] = [];
       appData.floors[currentFloor].push(newRoom);
+      appData.floors[currentFloor].push(newDoor);
       selectedElement = newRoom;
       if (window.switchTool) window.switchTool('select');
       saveData();
@@ -2029,6 +2396,381 @@ function drawSurfacePattern(ctx, surface, x, y, width, height, textureImg, textu
     ctx.fillStyle = '#f1f5f9';
     ctx.fillRect(x, y, width, height);
   }
+  ctx.restore();
+}
+
+// ----------------------------------------------------
+// DETAILLIERTE 2D-MÖBELZEICHNUNGEN
+// ----------------------------------------------------
+
+// 1b. U-förmige Wohnlandschaft
+function drawDesignerCouchU(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.08)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 4;
+  let baseFill = '#475569';
+  if (el.textureImg) { const img = getCachedImage(el.textureImg); if (img) baseFill = ctx.createPattern(img, 'repeat'); }
+  ctx.fillStyle = baseFill;
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 2;
+  const backDepth = 22;
+  const chaiseW = Math.min(w * 0.28, 70);
+
+  // Basis
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeRect(x, y, w, h);
+
+  // U-Ausschnitt in der vorderen Mitte
+  ctx.clearRect(x + chaiseW, y + backDepth + 35, w - chaiseW * 2, h - backDepth - 35);
+
+  // Konturen & Rückenlehne nachziehen
+  ctx.fillRect(x, y, w, backDepth + 35);
+  ctx.fillRect(x, y, chaiseW, h);
+  ctx.fillRect(x + w - chaiseW, y, chaiseW, h);
+  ctx.strokeRect(x, y, w, backDepth + 35);
+  ctx.strokeRect(x, y, chaiseW, h);
+  ctx.strokeRect(x + w - chaiseW, y, chaiseW, h);
+
+  // Gepolsterte Rückenlehne
+  ctx.fillStyle = '#334155';
+  ctx.fillRect(x + 2, y + 2, w - 4, backDepth);
+
+  // Akzentkissen
+  ctx.fillStyle = '#38bdf8'; ctx.fillRect(x + chaiseW - 16, y + backDepth + 6, 16, 16);
+  ctx.fillStyle = '#fbbf24'; ctx.fillRect(x + w - chaiseW, y + backDepth + 6, 16, 16);
+
+  ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🛋️ ' + el.label, x + w / 2, y + 42);
+  ctx.restore();
+}
+
+// 1c. Sitzbank am Esstisch
+function drawBench(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#b45309'; ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1.5;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  // Holzlatten
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath(); ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2); ctx.stroke();
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('🪑 ' + el.label, x + w / 2, y + h / 2);
+  ctx.restore();
+}
+
+// 1d. Kühlschrank (Side-by-Side)
+function drawFridge(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#e2e8f0'; ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  // Doppeltür-Spalt
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x + w * 0.45, y); ctx.lineTo(x + w * 0.45, y + h); ctx.stroke();
+  // Griffe
+  ctx.fillStyle = '#334155';
+  ctx.fillRect(x + w * 0.45 - 3, y + h * 0.25, 2, h * 0.5);
+  ctx.fillRect(x + w * 0.45 + 2, y + h * 0.25, 2, h * 0.5);
+  // Wasserspender Display links
+  ctx.fillStyle = '#0284c7'; ctx.fillRect(x + 6, y + 8, 14, 18);
+  ctx.fillStyle = '#1e293b'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('❄️ ' + el.label, x + w / 2, y + h - 8);
+  ctx.restore();
+}
+
+// 1e. Ofen & Herdblock
+function drawOvenHob(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#0f172a'; ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  // 4 Kochzonen
+  ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5;
+  const r = Math.min(w, h) * 0.18;
+  ctx.beginPath(); ctx.arc(x + w * 0.3, y + h * 0.32, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + w * 0.7, y + h * 0.32, r * 0.8, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + w * 0.3, y + h * 0.68, r * 0.8, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + w * 0.7, y + h * 0.68, r * 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🔥 ' + el.label, x + w / 2, y + h / 2 + 3);
+  ctx.restore();
+}
+
+// 1f. Küchenschrank / Unterschrank
+function drawKitchenCabinet(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w / 2, y + h); ctx.stroke();
+  ctx.fillStyle = '#64748b';
+  ctx.fillRect(x + w / 2 - 8, y + 4, 6, 2);
+  ctx.fillRect(x + w / 2 + 2, y + 4, 6, 2);
+  ctx.fillStyle = '#334155'; ctx.font = '600 10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🗄️ ' + el.label, x + w / 2, y + h / 2 + 4);
+  ctx.restore();
+}
+
+// 1g. Spüle mit Unterschrank
+function drawSinkCabinet(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.5;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  const basinW = w * 0.5; const basinH = h * 0.7;
+  ctx.fillStyle = '#cbd5e1'; ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+  ctx.fillRect(x + 8, y + (h - basinH) / 2, basinW, basinH);
+  ctx.strokeRect(x + 8, y + (h - basinH) / 2, basinW, basinH);
+  ctx.fillStyle = '#0284c7'; ctx.beginPath(); ctx.arc(x + 8 + basinW / 2, y + (h - basinH) / 2 + 4, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#cbd5e1';
+  for (let rx = x + basinW + 16; rx < x + w - 8; rx += 8) {
+    ctx.beginPath(); ctx.moveTo(rx, y + 10); ctx.lineTo(rx, y + h - 10); ctx.stroke();
+  }
+  ctx.fillStyle = '#1e293b'; ctx.font = '600 10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🚰 ' + el.label, x + w / 2, y + h - 6);
+  ctx.restore();
+}
+
+// 1h. Komfort-Doppelbett
+function drawDoubleBed(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#d97706'; ctx.strokeStyle = '#78350f'; ctx.lineWidth = 2;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  const headH = 20;
+  ctx.fillStyle = '#475569'; ctx.fillRect(x, y, w, headH);
+  ctx.fillStyle = '#f8fafc'; ctx.fillRect(x + 4, y + headH + 2, w - 8, h - headH - 6);
+  const pillowW = (w - 20) / 2;
+  const pillowH = 28;
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1;
+  ctx.fillRect(x + 8, y + headH + 4, pillowW, pillowH);
+  ctx.strokeRect(x + 8, y + headH + 4, pillowW, pillowH);
+  ctx.fillRect(x + 12 + pillowW, y + headH + 4, pillowW, pillowH);
+  ctx.strokeRect(x + 12 + pillowW, y + headH + 4, pillowW, pillowH);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(x + 4, y + headH + pillowH + 10, w - 8, h - headH - pillowH - 14);
+  ctx.fillStyle = '#1e293b'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🛏️ ' + el.label, x + w / 2, y + h / 2 + 25);
+  ctx.restore();
+}
+
+// 1i. Nachtschränkchen
+function drawNightstand(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#b45309'; ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1.5;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, 7, 0, Math.PI * 2);
+  ctx.fillStyle = '#fef08a'; ctx.fill(); ctx.strokeStyle = '#ca8a04'; ctx.stroke();
+  ctx.fillStyle = '#1e293b'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(el.label, x + w / 2, y + h - 4);
+  ctx.restore();
+}
+
+// 1j. Großer Kleiderschrank
+function drawWardrobe(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#e2e8f0'; ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  const doors = Math.max(2, Math.round(w / 50));
+  const doorW = w / doors;
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
+  for (let i = 1; i < doors; i++) {
+    ctx.beginPath(); ctx.moveTo(x + i * doorW, y); ctx.lineTo(x + i * doorW, y + h); ctx.stroke();
+  }
+  ctx.fillStyle = '#334155';
+  for (let i = 0; i < doors; i++) {
+    ctx.fillRect(x + i * doorW + doorW - 5, y + h / 2 - 6, 2, 12);
+  }
+  ctx.fillStyle = '#1e293b'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🚪 ' + el.label, x + w / 2, y + h / 2 + 4);
+  ctx.restore();
+}
+
+// 1k. Bücherregal / Raumteiler
+function drawBookshelf(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#78350f'; ctx.strokeStyle = '#451a03'; ctx.lineWidth = 2;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  const bookColors = ['#dc2626', '#2563eb', '#16a34a', '#ca8a04', '#7c3aed', '#db2777'];
+  const cols = Math.floor((w - 8) / 8);
+  for (let i = 0; i < cols; i++) {
+    ctx.fillStyle = bookColors[i % bookColors.length];
+    ctx.fillRect(x + 4 + i * 8, y + 3, 6, h - 6);
+  }
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('📚 ' + el.label, x + w / 2, y + h / 2 + 3);
+  ctx.restore();
+}
+
+// 1l. Schreibtisch mit Drehstuhl
+function drawDesk(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#f5efe6'; ctx.strokeStyle = '#8c7355'; ctx.lineWidth = 2;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#334155'; ctx.fillRect(x + (w - 60) / 2, y + 8, 60, h - 16);
+  ctx.beginPath(); ctx.arc(x + w / 2, y + h + 10, 14, 0, Math.PI * 2);
+  ctx.fillStyle = '#1e293b'; ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🖥️ ' + el.label, x + w / 2, y + h / 2 + 4);
+  ctx.restore();
+}
+
+// 1m. Computer & Monitor
+function drawComputer(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.5;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#0f172a'; ctx.fillRect(x + (w - 55) / 2, y + 6, 55, 8);
+  ctx.fillStyle = '#38bdf8'; ctx.fillRect(x + (w - 51) / 2, y + 8, 51, 4);
+  ctx.fillStyle = '#475569'; ctx.fillRect(x + (w - 45) / 2, y + 22, 45, 14);
+  ctx.fillStyle = '#64748b'; ctx.beginPath(); ctx.arc(x + (w - 45) / 2 + 52, y + 29, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#1e293b'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('💻 ' + el.label, x + w / 2, y + h - 8);
+  ctx.restore();
+}
+
+// 1n. Künstler-Staffelei
+function drawEasel(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.strokeStyle = '#b45309'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x + w / 2, y + 4); ctx.lineTo(x + 6, y + h - 4);
+  ctx.moveTo(x + w / 2, y + 4); ctx.lineTo(x + w - 6, y + h - 4);
+  ctx.moveTo(x + w / 2, y + 4); ctx.lineTo(x + w / 2, y + h - 4);
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1.5;
+  ctx.fillRect(x + (w - 36) / 2, y + 10, 36, 26);
+  ctx.strokeRect(x + (w - 36) / 2, y + 10, 36, 26);
+  ctx.fillStyle = '#ec4899'; ctx.beginPath(); ctx.arc(x + w / 2 - 8, y + 23, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#3b82f6'; ctx.beginPath(); ctx.arc(x + w / 2 + 8, y + 23, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#78350f'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🎨 ' + el.label, x + w / 2, y + h - 2);
+  ctx.restore();
+}
+
+// 1o. Badewanne
+function drawBathtub(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#e2e8f0'; ctx.strokeStyle = '#0891b2'; ctx.lineWidth = 2;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(x + 6, y + 6, w - 12, h - 12, Math.min(w, h) * 0.3) : ctx.rect(x + 6, y + 6, w - 12, h - 12);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#64748b'; ctx.beginPath(); ctx.arc(x + 22, y + h / 2, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0891b2'; ctx.fillRect(x + 8, y + h / 2 - 3, 6, 6);
+  ctx.fillStyle = '#0e7490'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🛁 ' + el.label, x + w / 2, y + h / 2 + 4);
+  ctx.restore();
+}
+
+// 1p. Handtuchheizung
+function drawTowelRadiator(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.strokeStyle = '#0891b2'; ctx.lineWidth = 1.5;
+  for (let px = x + 6; px < x + w - 6; px += 8) {
+    ctx.beginPath(); ctx.moveTo(px, y + 2); ctx.lineTo(px, y + h - 2); ctx.stroke();
+  }
+  ctx.fillStyle = '#f43f5e'; ctx.fillRect(x + w * 0.3, y + 1, w * 0.4, h - 2);
+  ctx.restore();
+}
+
+// 1q. Wandheizkörper
+function drawRadiator(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.5;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1;
+  for (let px = x + 4; px < x + w - 4; px += 5) {
+    ctx.beginPath(); ctx.moveTo(px, y); ctx.lineTo(px, y + h); ctx.stroke();
+  }
+  ctx.fillStyle = '#ef4444'; ctx.fillRect(x + 2, y + h / 2 - 3, 4, 6);
+  ctx.restore();
+}
+
+// 1r. Wandspiegel
+function drawMirror(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#e0f2fe'; ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 1.5;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x + 6, y + h - 2); ctx.lineTo(x + 18, y + 2); ctx.stroke();
+  ctx.restore();
+}
+
+// 1s. Wandbild / Gemälde
+function drawWallArt(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#d97706'; ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1.5;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#38bdf8'; ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+  ctx.restore();
+}
+
+// 1t. Sitzkissen / Pouf
+function drawPouf(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#e0e7ff'; ctx.strokeStyle = '#4338ca'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(x, y, w, h, 14) : ctx.rect(x, y, w, h);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#3730a3'; ctx.fill();
+  ctx.fillStyle = '#3730a3'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🧘 ' + el.label, x + w / 2, y + h - 6);
+  ctx.restore();
+}
+
+// 1u. Katzen-Kratzbaum
+function drawCatTree(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  ctx.save();
+  ctx.fillStyle = '#e2e8f0'; ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+  ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#d97706';
+  ctx.beginPath(); ctx.arc(x + 15, y + 15, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + w - 15, y + 15, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f1f5f9'; ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2 + 5, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#334155'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('🐱 ' + el.label, x + w / 2, y + h / 2 + 8);
+  ctx.restore();
+}
+
+// 1v. Runder Designer-Teppich
+function drawRoundRug(ctx, el) {
+  const { x, y, width: w, height: h } = el;
+  const r = Math.min(w, h) / 2;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  let fill = '#fed7aa';
+  if (el.textureImg) {
+    const img = getCachedImage(el.textureImg);
+    if (img) fill = ctx.createPattern(img, 'repeat');
+  }
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = '#ea580c'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = 'rgba(234, 88, 12, 0.4)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.7, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#9a3412'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('⭕ ' + el.label, cx, cy);
   ctx.restore();
 }
 
@@ -2681,7 +3423,7 @@ function drawArchitecturalWindow(ctx, el) {
   ctx.restore();
 }
 
-// 11. Detaillierte Pflanzen (Monstera & Ficus)
+// 11. Detaillierte Pflanzen (Monstera, Ficus, Elefantenfuß & Drachenpalme)
 function drawDetailedPlant(ctx, el) {
   const { x, y, radius: r, name, subType } = el;
   ctx.save();
@@ -2701,28 +3443,101 @@ function drawDetailedPlant(ctx, el) {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Große Monstera Blätter
+  const isElefantenfuss = subType === 'pflanze_elefantenfuss' || name.toLowerCase().includes('elefantenfuß');
+  const isDrachenpalme = subType === 'pflanze_drachenpalme' || name.toLowerCase().includes('drachenpalme');
   const isMonstera = subType === 'pflanze_gross' || name.toLowerCase().includes('monstera');
-  const leafCount = isMonstera ? 6 : 8;
 
-  for (let i = 0; i < leafCount; i++) {
-    const angle = (i * (Math.PI * 2) / leafCount) + 0.3;
-    const lx = x + Math.cos(angle) * (r * 0.85);
-    const ly = y + Math.sin(angle) * (r * 0.85);
-
-    ctx.save();
-    ctx.translate(lx, ly);
-    ctx.rotate(angle);
-
+  if (isElefantenfuss) {
+    // Dicker knolliger Fuß (Caudex) in der Mitte
     ctx.beginPath();
-    ctx.ellipse(0, 0, r * 0.45, r * 0.25, 0, 0, Math.PI * 2);
-    ctx.fillStyle = i % 2 === 0 ? '#15803d' : '#22c55e';
+    ctx.arc(x, y, r * 0.38, 0, Math.PI * 2);
+    ctx.fillStyle = '#78350f';
     ctx.fill();
-    ctx.strokeStyle = '#14532d';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#451a03';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    ctx.restore();
+    // Zahlreiche feine, bogenförmig überhängende Schopblätter
+    ctx.strokeStyle = '#16a34a';
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 20; i++) {
+      const angle = (i * Math.PI * 2) / 20;
+      const cpX = x + Math.cos(angle) * (r * 0.6);
+      const cpY = y + Math.sin(angle) * (r * 0.6);
+      const endX = x + Math.cos(angle + 0.3) * (r * 1.15);
+      const endY = y + Math.sin(angle + 0.3) * (r * 1.15);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+      ctx.stroke();
+    }
+
+  } else if (isDrachenpalme) {
+    // Mehrere kleine Stämme
+    [-5, 4].forEach(offX => {
+      ctx.fillStyle = '#854d0e';
+      ctx.fillRect(x + offX - 2, y - 6, 5, 12);
+    });
+
+    // Strahlenförmige spitze Palmwedel mit dunklen Kanten
+    const leafCount = 16;
+    for (let i = 0; i < leafCount; i++) {
+      const angle = (i * Math.PI * 2) / leafCount;
+      const lx = x + Math.cos(angle) * (r * 0.95);
+      const ly = y + Math.sin(angle) * (r * 0.95);
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(0, -2);
+      ctx.lineTo(r * 0.35, 0);
+      ctx.lineTo(0, 2);
+      ctx.closePath();
+      ctx.fillStyle = (i % 2 === 0) ? '#15803d' : '#166534';
+      ctx.fill();
+      ctx.strokeStyle = '#991b1b'; // Roter Blattrand
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+  } else if (isMonstera) {
+    // Große Monstera Blätter
+    const leafCount = 7;
+    for (let i = 0; i < leafCount; i++) {
+      const angle = (i * (Math.PI * 2) / leafCount) + 0.3;
+      const lx = x + Math.cos(angle) * (r * 0.85);
+      const ly = y + Math.sin(angle) * (r * 0.85);
+
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 0.45, r * 0.25, 0, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 === 0 ? '#15803d' : '#22c55e';
+      ctx.fill();
+      ctx.strokeStyle = '#14532d';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+  } else {
+    // Ficus / Bäumchen mit dichter runder Blattkrone
+    const leafCount = 12;
+    for (let i = 0; i < leafCount; i++) {
+      const angle = (i * (Math.PI * 2) / leafCount);
+      const dist = (i % 2 === 0) ? r * 0.75 : r * 0.55;
+      const lx = x + Math.cos(angle) * dist;
+      const ly = y + Math.sin(angle) * dist;
+      ctx.beginPath();
+      ctx.arc(lx, ly, r * 0.28, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 === 0 ? '#166534' : '#15803d';
+      ctx.fill();
+      ctx.strokeStyle = '#14532d';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
   }
 
   // Text Label
@@ -2762,14 +3577,27 @@ function renderCanvas() {
 
   const elements = appData.floors[currentFloor] || [];
 
-  // 1. Zuerst Räume rendern (Hintergrund-Ebene)
+  // 1. Zuerst Räume rendern (Hintergrund-Ebene mit massiven Wänden)
   elements.filter(el => el.type === 'room').forEach(room => {
     drawSurfacePattern(ctx, room.surface, room.x, room.y, room.width, room.height, room.textureImg, room.textureScaleCm || 50);
 
-    // Raum-Außenwände (Solide Mauerstärke)
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = Math.max(2, 3 / canvasZoom);
-    ctx.strokeRect(room.x, room.y, room.width, room.height);
+    // Massive Raum-Außenwände (Architektur-Mauerwerk mit 8px Stärke)
+    const wallThick = 8;
+    ctx.fillStyle = '#334155';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.5;
+    // Oben
+    ctx.fillRect(room.x - wallThick, room.y - wallThick, room.width + wallThick * 2, wallThick);
+    ctx.strokeRect(room.x - wallThick, room.y - wallThick, room.width + wallThick * 2, wallThick);
+    // Unten
+    ctx.fillRect(room.x - wallThick, room.y + room.height, room.width + wallThick * 2, wallThick);
+    ctx.strokeRect(room.x - wallThick, room.y + room.height, room.width + wallThick * 2, wallThick);
+    // Links
+    ctx.fillRect(room.x - wallThick, room.y, wallThick, room.height);
+    ctx.strokeRect(room.x - wallThick, room.y, wallThick, room.height);
+    // Rechts
+    ctx.fillRect(room.x + room.width, room.y, wallThick, room.height);
+    ctx.strokeRect(room.x + room.width, room.y, wallThick, room.height);
 
     const wM = (room.width / PIXELS_PER_METER).toFixed(1);
     const hM = (room.height / PIXELS_PER_METER).toFixed(1);
@@ -2840,31 +3668,29 @@ function renderCanvas() {
     let wBadgeX = room.x + (room.width - wBadgeW) / 2;
     if (badgeIsTop) {
       if (room.width < bRect.width + wBadgeW + 30) {
-        // Bei schmaleren Räumen ist das Breitenmaß bereits in der Plakette enthalten
         drawWidthBadge = false;
       } else {
-        // Harmonisch rechts neben der Plakette positionieren
         wBadgeX = Math.max(room.x + bRect.width + 15, room.x + (room.width - wBadgeW) / 2);
       }
     }
 
     if (drawWidthBadge) {
-      ctx.fillRect(wBadgeX, room.y - 18, wBadgeW, 16);
-      ctx.strokeRect(wBadgeX, room.y - 18, wBadgeW, 16);
+      ctx.fillRect(wBadgeX, room.y - 20, wBadgeW, 16);
+      ctx.strokeRect(wBadgeX, room.y - 20, wBadgeW, 16);
       ctx.fillStyle = '#0f172a';
       ctx.textAlign = 'center';
-      ctx.fillText(`⟵ ${wBadge} ⟶`, wBadgeX + wBadgeW / 2, room.y - 6);
+      ctx.fillText(`⟵ ${wBadge} ⟶`, wBadgeX + wBadgeW / 2, room.y - 8);
     }
 
     // Links: Länge
     const hBadge = `${hM} m`;
     const hBadgeW = ctx.measureText(hBadge).width + 14;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-    ctx.fillRect(room.x - hBadgeW - 6, room.y + (room.height - 16) / 2, hBadgeW, 16);
-    ctx.strokeRect(room.x - hBadgeW - 6, room.y + (room.height - 16) / 2, hBadgeW, 16);
+    ctx.fillRect(room.x - hBadgeW - 10, room.y + (room.height - 16) / 2, hBadgeW, 16);
+    ctx.strokeRect(room.x - hBadgeW - 10, room.y + (room.height - 16) / 2, hBadgeW, 16);
     ctx.fillStyle = '#0f172a';
     ctx.textAlign = 'center';
-    ctx.fillText(hBadge, room.x - hBadgeW / 2 - 6, room.y + room.height / 2 + 4);
+    ctx.fillText(hBadge, room.x - hBadgeW / 2 - 10, room.y + room.height / 2 + 4);
 
     ctx.restore();
   });
@@ -2897,20 +3723,64 @@ function renderCanvas() {
     }
 
     const sub = f.subType;
-    if (sub === 'couch_eck') {
+    if (sub === 'couch_u') {
+      drawDesignerCouchU(ctx, f);
+    } else if (sub === 'couch_eck') {
       drawDesignerCouchL(ctx, f);
     } else if (sub === 'couch_3er') {
       drawSofa3(ctx, f);
     } else if (sub === 'tisch_gross') {
       drawDiningTableWithChairs(ctx, f);
+    } else if (sub === 'esstisch_bank') {
+      drawBench(ctx, f);
     } else if (sub === 'tisch_rund') {
       drawRoundTableWithChairs(ctx, f);
     } else if (sub === 'kuecheninsel') {
       drawKitchenIsland(ctx, f);
+    } else if (sub === 'kuechenzeile') {
+      drawKitchenIsland(ctx, f);
+    } else if (sub === 'kuehlschrank') {
+      drawFridge(ctx, f);
+    } else if (sub === 'ofen') {
+      drawOvenHob(ctx, f);
+    } else if (sub === 'kuechenschrank') {
+      drawKitchenCabinet(ctx, f);
+    } else if (sub === 'spuele_schrank') {
+      drawSinkCabinet(ctx, f);
+    } else if (sub === 'bett_doppel') {
+      drawDoubleBed(ctx, f);
+    } else if (sub === 'nachtschrank') {
+      drawNightstand(ctx, f);
+    } else if (sub === 'kleiderschrank') {
+      drawWardrobe(ctx, f);
+    } else if (sub === 'regal') {
+      drawBookshelf(ctx, f);
+    } else if (sub === 'schreibtisch') {
+      drawDesk(ctx, f);
+    } else if (sub === 'computer') {
+      drawComputer(ctx, f);
+    } else if (sub === 'staffelei') {
+      drawEasel(ctx, f);
     } else if (sub === 'waschtisch') {
       drawModernWaschtisch(ctx, f);
+    } else if (sub === 'badewanne') {
+      drawBathtub(ctx, f);
     } else if (sub === 'wc_haenge') {
       drawHangingToilet(ctx, f);
+    } else if (sub === 'handtuchheizung') {
+      drawTowelRadiator(ctx, f);
+    } else if (sub === 'heizkoerper') {
+      drawRadiator(ctx, f);
+    } else if (sub === 'spiegel') {
+      drawMirror(ctx, f);
+    } else if (sub === 'wandbild') {
+      drawWallArt(ctx, f);
+    } else if (sub === 'sitzkissen') {
+      drawPouf(ctx, f);
+    } else if (sub === 'kratzbaum') {
+      drawCatTree(ctx, f);
+    } else if (sub === 'teppich_rund') {
+      drawRoundRug(ctx, f);
     } else if (sub === 'treppe' || sub === 'treppe_auf' || sub === 'treppe_ab') {
       drawOpenStairs(ctx, f);
     } else if (sub === 'tuer') {
@@ -3444,6 +4314,7 @@ function updateInspector() {
       </div>
 
       <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:1rem;">
+        <button id="btn-insp-add-door" class="btn btn-sm btn-secondary">🚪 Zimmertür in Wand einsetzen</button>
         <button id="btn-insp-add-task" class="btn btn-sm btn-primary">➕ Putzaufgabe für diesen Raum verknüpfen</button>
         <button id="btn-insp-del" class="btn btn-sm btn-danger">🗑️ Raum löschen</button>
       </div>
@@ -3452,6 +4323,32 @@ function updateInspector() {
     bindScaleButtons(el);
     bindPositionAndNudgeEvents(el);
     bindTextureControlEvents(el);
+
+    const btnAddDoor = document.getElementById('btn-insp-add-door');
+    if (btnAddDoor) {
+      btnAddDoor.addEventListener('click', () => {
+        const doorW = Math.min(70, Math.round(el.width * 0.35));
+        const newDoor = {
+          id: 'f-door-' + Date.now(),
+          type: 'furniture',
+          subType: 'tuer',
+          label: 'Zimmertür',
+          x: el.x + Math.round((el.width - doorW) / 2),
+          y: el.y + el.height - 10,
+          width: doorW,
+          height: 20,
+          swingIn: true,
+          hinge: 'left'
+        };
+        if (!appData.floors[currentFloor]) appData.floors[currentFloor] = [];
+        appData.floors[currentFloor].push(newDoor);
+        selectedElement = newDoor;
+        saveData();
+        renderCanvas();
+        updateInspector();
+        if (activeViewMode === '3d') update3DScene();
+      });
+    }
 
     const badgePosSelect = document.getElementById('insp-room-badge-pos');
     if (badgePosSelect) {
@@ -4211,7 +5108,7 @@ function update3DScene() {
 
       const sub = f.subType;
 
-      if (sub === 'couch_eck' || sub === 'couch_3er') {
+      if (sub === 'couch_eck' || sub === 'couch_3er' || sub === 'couch_u') {
         const seatH = 0.55;
         let seatMat, cushionMat;
         if (f.textureImg) {
@@ -4234,6 +5131,116 @@ function update3DScene() {
         const back = new THREE.Mesh(new THREE.BoxGeometry(w, backH, d * 0.25), cushionMat);
         back.position.set(0, seatH + backH / 2, -d * 0.35);
         group.add(back);
+
+        if (sub === 'couch_u') {
+          // 2 Chaiselongues links und rechts
+          const wingW = w * 0.28;
+          const leftArm = new THREE.Mesh(new THREE.BoxGeometry(wingW, backH * 0.8, d * 0.75), cushionMat);
+          leftArm.position.set(-w / 2 + wingW / 2, seatH + backH * 0.4, 0);
+          group.add(leftArm);
+          const rightArm = new THREE.Mesh(new THREE.BoxGeometry(wingW, backH * 0.8, d * 0.75), cushionMat);
+          rightArm.position.set(w / 2 - wingW / 2, seatH + backH * 0.4, 0);
+          group.add(rightArm);
+        }
+
+      } else if (sub === 'bett_doppel') {
+        const bedFrameH = 0.45;
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.5 });
+        const mattressMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.8 });
+        const pillowMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(w, bedFrameH, d), frameMat);
+        frame.position.y = bedFrameH / 2;
+        group.add(frame);
+
+        // Kopfteil
+        const headH = 0.65;
+        const head = new THREE.Mesh(new THREE.BoxGeometry(w, headH, 0.1), frameMat);
+        head.position.set(0, bedFrameH + headH / 2, -d / 2 + 0.05);
+        group.add(head);
+
+        // Matratze
+        const mattress = new THREE.Mesh(new THREE.BoxGeometry(w * 0.95, 0.25, d * 0.92), mattressMat);
+        mattress.position.set(0, bedFrameH + 0.125, 0.04);
+        group.add(mattress);
+
+        // 2 Kissen
+        [-w * 0.25, w * 0.25].forEach(px => {
+          const pillow = new THREE.Mesh(new THREE.BoxGeometry(w * 0.35, 0.1, 0.35), pillowMat);
+          pillow.position.set(px, bedFrameH + 0.28, -d * 0.3);
+          group.add(pillow);
+        });
+
+      } else if (sub === 'kuehlschrank') {
+        const fridgeH = 1.85;
+        const fridgeMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.2, metalness: 0.4 });
+        const fridge = new THREE.Mesh(new THREE.BoxGeometry(w, fridgeH, d), fridgeMat);
+        fridge.position.y = fridgeH / 2;
+        group.add(fridge);
+
+      } else if (sub === 'kleiderschrank') {
+        const wardH = 2.1;
+        const wardMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.6 });
+        const ward = new THREE.Mesh(new THREE.BoxGeometry(w, wardH, d), wardMat);
+        ward.position.y = wardH / 2;
+        group.add(ward);
+
+      } else if (sub === 'regal') {
+        const shelfH = 1.8;
+        const shelfMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.5 });
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(w, shelfH, d), shelfMat);
+        shelf.position.y = shelfH / 2;
+        group.add(shelf);
+
+      } else if (sub === 'badewanne') {
+        const tubH = 0.65;
+        const tubMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15 });
+        const tub = new THREE.Mesh(new THREE.BoxGeometry(w, tubH, d), tubMat);
+        tub.position.y = tubH / 2;
+        group.add(tub);
+
+      } else if (sub === 'schreibtisch' || sub === 'computer') {
+        const deskH = 0.75;
+        const deskMat = new THREE.MeshStandardMaterial({ color: 0xf5efe6, roughness: 0.4 });
+        const top = new THREE.Mesh(new THREE.BoxGeometry(w, 0.05, d), deskMat);
+        top.position.y = deskH;
+        group.add(top);
+
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
+        const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, deskH, d * 0.9), legMat);
+        leg1.position.set(-w / 2 + 0.08, deskH / 2, 0);
+        group.add(leg1);
+        const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.06, deskH, d * 0.9), legMat);
+        leg2.position.set(w / 2 - 0.08, deskH / 2, 0);
+        group.add(leg2);
+
+        if (sub === 'computer') {
+          const monMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2 });
+          const monitor = new THREE.Mesh(new THREE.BoxGeometry(w * 0.6, 0.4, 0.05), monMat);
+          monitor.position.set(0, deskH + 0.25, -d * 0.2);
+          group.add(monitor);
+        }
+
+      } else if (sub === 'esstisch_bank') {
+        const benchH = 0.48;
+        const benchMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.4 });
+        const top = new THREE.Mesh(new THREE.BoxGeometry(w, 0.05, d), benchMat);
+        top.position.y = benchH;
+        group.add(top);
+
+      } else if (sub === 'sitzkissen') {
+        const poufH = 0.35;
+        const poufMat = new THREE.MeshStandardMaterial({ color: 0x4338ca, roughness: 0.9 });
+        const pouf = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, poufH, 16), poufMat);
+        pouf.position.y = poufH / 2;
+        group.add(pouf);
+
+      } else if (sub === 'ofen' || sub === 'kuechenschrank' || sub === 'spuele_schrank') {
+        const unitH = 0.9;
+        const unitMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.4 });
+        const unit = new THREE.Mesh(new THREE.BoxGeometry(w, unitH, d), unitMat);
+        unit.position.y = unitH / 2;
+        group.add(unit);
 
       } else if (sub === 'tisch_gross' || sub === 'tisch_rund') {
         const tableH = 0.85;
@@ -4340,8 +5347,8 @@ function update3DScene() {
         door.position.y = doorH / 2;
         group.add(door);
 
-      } else if (sub === 'teppich_insel' || sub === 'fliesen_zone') {
-        const isRug = sub === 'teppich_insel';
+      } else if (sub === 'teppich_insel' || sub === 'teppich_rund' || sub === 'fliesen_zone') {
+        const isRug = sub === 'teppich_insel' || sub === 'teppich_rund';
         let rugMat;
         if (f.textureImg) {
           const tex = new THREE.TextureLoader().load(f.textureImg);
@@ -4354,7 +5361,12 @@ function update3DScene() {
         } else {
           rugMat = new THREE.MeshStandardMaterial({ color: isRug ? 0xd1d5db : 0xf1f5f9, roughness: isRug ? 0.9 : 0.3 });
         }
-        const rug = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, d), rugMat);
+        let rug;
+        if (sub === 'teppich_rund') {
+          rug = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, 0.04, 24), rugMat);
+        } else {
+          rug = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, d), rugMat);
+        }
         rug.position.y = 0.1;
         group.add(rug);
 

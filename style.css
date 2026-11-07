@@ -1,21 +1,22 @@
 :root {
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --primary-light: #f0f7ff;
-  --success: #059669;
-  --success-light: #ecfdf5;
-  --warning: #d97706;
-  --warning-light: #fffbeb;
-  --danger: #e11d48;
-  --danger-light: #fff1f2;
-  --bg-main: #f8fafc;
+  /* Elegante, warme Farbpalette: Warmes dunkles Sandbeige & Erdtöne */
+  --primary: #8c7355;          /* Warmes dunkles Beige / Haselnuss */
+  --primary-hover: #755f44;    /* Tiefes Mokka-Beige */
+  --primary-light: #f5efe6;    /* Sehr sanftes, helles Natur-Beige */
+  --success: #5f7a61;          /* Gedämpftes Salbeigrün */
+  --success-light: #f0f4f1;    /* Hauchzartes Salbei */
+  --warning: #b47846;          /* Warmes Terrakotta-Ocker */
+  --warning-light: #faf4ee;    /* Helles Sandelholz */
+  --danger: #a65b5b;           /* Edles, sanftes Altrosa / Rosenholz (nicht knallig!) */
+  --danger-light: #faf0f0;     /* Sanftes Pastell-Rose */
+  --bg-main: #fcfaf7;          /* Sehr weicher, warmer Sand-/Wollweiß-Ton */
   --bg-card: #ffffff;
-  --border: #e2e8f0;
-  --text-main: #1e293b;
-  --text-muted: #64748b;
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04);
+  --border: #e8e2d8;          /* Zarte Leinen- / Steingrenze */
+  --text-main: #2d2823;        /* Warmes Espresso-Dunkelgrau (viel weicher als Hartschwarz) */
+  --text-muted: #787066;       /* Warmes Graubeige */
+  --shadow-sm: 0 1px 3px 0 rgb(45 40 35 / 0.04);
+  --shadow-md: 0 4px 8px -1px rgb(45 40 35 / 0.06), 0 2px 4px -2px rgb(45 40 35 / 0.04);
+  --shadow-lg: 0 10px 20px -3px rgb(45 40 35 / 0.08), 0 4px 6px -4px rgb(45 40 35 / 0.04);
   --radius: 12px;
 }
 
@@ -66,7 +67,8 @@ canvas#cropCanvas, canvas#panoCanvas {
 
 .brand-icon {
   font-size: 1.6rem;
-  background: #eff6ff;
+  background: var(--primary-light);
+  border: 1px solid var(--border);
   width: 40px;
   height: 40px;
   display: flex;
@@ -301,11 +303,12 @@ canvas#cropCanvas, canvas#panoCanvas {
 }
 
 .btn-group .btn.btn-all-floors {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--primary-light);
+  color: var(--primary-hover);
+  border: 1px solid var(--border);
 }
 .btn-group .btn.btn-all-floors.active {
-  background: #2563eb;
+  background: var(--primary);
   color: #ffffff;
 }
 
@@ -770,8 +773,9 @@ canvas#floorCanvas {
 .dim-badge {
   display: inline-flex;
   align-items: center;
-  background: #eff6ff;
-  color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary-hover);
+  border: 1px solid var(--border);
   font-weight: 700;
   padding: 0.25rem 0.6rem;
   border-radius: 6px;
@@ -1093,8 +1097,9 @@ canvas#floorCanvas {
 }
 
 .stain-surface-tag {
-  background: #eff6ff;
-  color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary-hover);
+  border: 1px solid var(--border);
   padding: 0.15rem 0.5rem;
   border-radius: 6px;
   font-size: 0.75rem;
@@ -1168,15 +1173,15 @@ canvas#floorCanvas {
 
 /* Tool Buttons Highlight */
 .btn-tool.active {
-  background: #2563eb !important;
+  background: var(--primary) !important;
   color: #ffffff !important;
   font-weight: 700;
 }
 
 .canvas-info-banner.drawing-active {
-  background: #eff6ff;
-  border-bottom: 2px solid #2563eb;
-  color: #1e40af;
+  background: var(--primary-light);
+  border-bottom: 2px solid var(--primary);
+  color: var(--primary-hover);
   font-weight: 600;
 }
 

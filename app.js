@@ -720,7 +720,15 @@ function zoomToFit() {
 }
 
 function getResizeHandles(el) {
-  if (!el || el.type === 'plant') return [];
+  if (!el) return [];
+  if (el.type === 'plant') {
+    const r = el.radius || 20;
+    return [
+      { handle: 'r-se', x: el.x + r * 0.707, y: el.y + r * 0.707 },
+      { handle: 'r-e',  x: el.x + r, y: el.y },
+      { handle: 'r-s',  x: el.x, y: el.y + r }
+    ];
+  }
   const x = el.x;
   const y = el.y;
   const w = el.width;
@@ -738,14 +746,19 @@ function getResizeHandles(el) {
 }
 
 function getHandleUnderPoint(pt, el) {
+  if (!el) return null;
   const handles = getResizeHandles(el);
-  const tol = Math.max(12, 16 / canvasZoom);
+  const tol = Math.max(14, 18 / canvasZoom);
+  let closest = null;
+  let minDist = tol;
   for (const h of handles) {
-    if (Math.abs(pt.x - h.x) <= tol && Math.abs(pt.y - h.y) <= tol) {
-      return h.handle;
+    const dist = Math.hypot(pt.x - h.x, pt.y - h.y);
+    if (dist <= minDist) {
+      minDist = dist;
+      closest = h.handle;
     }
   }
-  return null;
+  return closest;
 }
 
 function calculateAreaM2(widthPx, heightPx) {
@@ -1153,14 +1166,23 @@ function handleCanvasMouseMove(evt) {
   }
 
   if (isDrawing && activeResizeHandle && selectedElement) {
+    const el = selectedElement;
+
+    // Pflanzen-Radius mit Griff vergrößern / verkleinern
+    if (el.type === 'plant' && activeResizeHandle.startsWith('r')) {
+      const dist = Math.hypot(pt.x - el.x, pt.y - el.y);
+      el.radius = Math.max(10, Math.min(220, Math.round(dist)));
+      renderCanvas();
+      return;
+    }
+
     // Umriss durch Ziehen am Griff verändern!
     const dx = pt.x - dragStartX;
     const dy = pt.y - dragStartY;
     dragStartX = pt.x;
     dragStartY = pt.y;
 
-    const el = selectedElement;
-    const minSize = 14;
+    const minSize = 10;
 
     if (activeResizeHandle.includes('e')) {
       el.width = Math.max(minSize, el.width + dx);
@@ -1187,7 +1209,6 @@ function handleCanvasMouseMove(evt) {
       el.areaM2 = calculateAreaM2(el.width, el.height);
     }
 
-    updateInspector();
     renderCanvas();
 
   } else if (isDrawing && currentTool === 'room') {
@@ -1228,8 +1249,8 @@ function handleCanvasMouseMove(evt) {
     ctx.strokeRect(startX, startY, drawW, drawH);
     ctx.restore();
 
-  } else if (isDrawing && currentTool === 'select' && selectedElement && !activeResizeHandle) {
-    // Ganzes Element verschieben
+  } else if (isDrawing && selectedElement && !activeResizeHandle) {
+    // Ganzes Element verschieben (flüssig ohne DOM-Neuaufbau während der Mausbewegung)
     const dx = pt.x - dragStartX;
     const dy = pt.y - dragStartY;
     dragStartX = pt.x;
@@ -1237,7 +1258,6 @@ function handleCanvasMouseMove(evt) {
 
     selectedElement.x += dx;
     selectedElement.y += dy;
-    updateInspector();
     renderCanvas();
   }
 }
@@ -1245,43 +1265,55 @@ function handleCanvasMouseMove(evt) {
 function handleCanvasMouseDown(evt) {
   const pt = getCanvasPoint(evt);
 
-  if (currentTool === 'select') {
-    // 1. Zuerst prüfen, ob ein Resize-Handle des aktiven Elements geklickt wurde
-    if (selectedElement) {
-      const handle = getHandleUnderPoint(pt, selectedElement);
-      if (handle) {
-        isDrawing = true;
-        activeResizeHandle = handle;
-        dragStartX = pt.x;
-        dragStartY = pt.y;
-        return;
-      }
-    }
-
-    // 2. Element auswählen (präzise Trefferzone für Fenster, Möbel, Wände)
-    selectedElement = findElementUnderPoint(pt);
-    activeResizeHandle = null;
-
-    if (selectedElement) {
+  // 1. Zuerst prüfen, ob ein Resize-Handle des aktiven Elements geklickt wurde
+  if (selectedElement) {
+    const handle = getHandleUnderPoint(pt, selectedElement);
+    if (handle) {
       isDrawing = true;
+      activeResizeHandle = handle;
       dragStartX = pt.x;
       dragStartY = pt.y;
-    } else {
-      // Kein Element getroffen => Canvas verschieben (Pan)
-      const rect = canvas.getBoundingClientRect();
-      const clientX = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientX : evt.clientX;
-      const clientY = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientY : evt.clientY;
-      isPanning = true;
-      panStartX = (clientX - rect.left) * (canvas.width / rect.width);
-      panStartY = (clientY - rect.top) * (canvas.height / rect.height);
+      return;
+    }
+  }
+
+  // 2. Prüfen, ob ein Element angeklickt wurde (Fenster, Möbel, Wand, Pflanze, Raum)
+  const clickedEl = findElementUnderPoint(pt);
+
+  if (clickedEl) {
+    selectedElement = clickedEl;
+    activeResizeHandle = null;
+    isDrawing = true;
+    dragStartX = pt.x;
+    dragStartY = pt.y;
+
+    // Wenn ein Element angeklickt wird, immer in den Auswahl- & Verschieben-Modus schalten
+    if (currentTool !== 'select' && window.switchTool) {
+      window.switchTool('select');
     }
     updateInspector();
     renderCanvas();
+    return;
+  }
 
-  } else if (currentTool === 'room' || currentTool === 'wall') {
+  // 3. Wenn auf freie Fläche geklickt wurde:
+  if (currentTool === 'room' || currentTool === 'wall') {
     isDrawing = true;
     startX = pt.x;
     startY = pt.y;
+  } else {
+    // Freie Fläche im Auswahlmodus angeklickt => Abwählen oder Canvas verschieben (Pan)
+    selectedElement = null;
+    activeResizeHandle = null;
+    updateInspector();
+    renderCanvas();
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientX : evt.clientX;
+    const clientY = evt.touches && evt.touches.length > 0 ? evt.touches[0].clientY : evt.clientY;
+    isPanning = true;
+    panStartX = (clientX - rect.left) * (canvas.width / rect.width);
+    panStartY = (clientY - rect.top) * (canvas.height / rect.height);
   }
 }
 
@@ -1319,8 +1351,10 @@ function handleCanvasMouseUp(evt) {
       if (!appData.floors[currentFloor]) appData.floors[currentFloor] = [];
       appData.floors[currentFloor].push(newRoom);
       selectedElement = newRoom;
+      if (window.switchTool) window.switchTool('select');
       saveData();
       updateInspector();
+      if (activeViewMode === '3d') update3DScene();
     }
   } else if (currentTool === 'wall') {
     const pt = getCanvasPoint(evt);
@@ -1330,9 +1364,8 @@ function handleCanvasMouseUp(evt) {
     let y = Math.min(startY, pt.y);
 
     if (w > 15 || h > 15) {
-      // Automatisch ausrichten (horizontal oder vertikal)
       if (w > h) {
-        h = 14; // Standard-Wandstärke ca. 35cm
+        h = 14;
       } else {
         w = 14;
       }
@@ -1350,11 +1383,16 @@ function handleCanvasMouseUp(evt) {
       if (!appData.floors[currentFloor]) appData.floors[currentFloor] = [];
       appData.floors[currentFloor].push(newWall);
       selectedElement = newWall;
+      if (window.switchTool) window.switchTool('select');
       saveData();
       updateInspector();
+      if (activeViewMode === '3d') update3DScene();
     }
-  } else if (currentTool === 'select') {
+  } else {
+    // Verschieben oder Skalieren beendet => Jetzt speichern & Inspektor synchronisieren
     saveData();
+    updateInspector();
+    if (activeViewMode === '3d') update3DScene();
   }
   renderCanvas();
 }
@@ -2507,6 +2545,19 @@ function renderCanvas() {
       ctx.beginPath();
       ctx.arc(selectedElement.x, selectedElement.y, selectedElement.radius + 6, 0, Math.PI * 2);
       ctx.stroke();
+
+      ctx.setLineDash([]);
+      const handles = getResizeHandles(selectedElement);
+      const hSize = Math.max(9, Math.round(11 / canvasZoom));
+      handles.forEach(h => {
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, hSize / 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#8c7355';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
     } else {
       ctx.strokeRect(selectedElement.x - 3, selectedElement.y - 3, selectedElement.width + 6, selectedElement.height + 6);
 
@@ -2622,6 +2673,200 @@ function bindTextureControlEvents(el) {
   });
 }
 
+function getScaleButtonsHTML() {
+  return `
+    <div style="display:flex; gap:0.4rem; margin-top:0.35rem;">
+      <button id="btn-scale-down" class="btn btn-sm btn-secondary" style="flex:1;" title="Objekt um 10% verkleinern">➖ 10% kleiner</button>
+      <button id="btn-scale-up" class="btn btn-sm btn-secondary" style="flex:1;" title="Objekt um 10% vergrößern">➕ 10% größer</button>
+    </div>
+  `;
+}
+
+function bindScaleButtons(el) {
+  const btnDown = document.getElementById('btn-scale-down');
+  const btnUp = document.getElementById('btn-scale-up');
+  if (btnDown) {
+    btnDown.addEventListener('click', () => {
+      if (el.type === 'plant') {
+        el.radius = Math.max(10, Math.round(el.radius * 0.9));
+      } else {
+        el.width = Math.max(14, Math.round(el.width * 0.9));
+        el.height = Math.max(14, Math.round(el.height * 0.9));
+        if (el.type === 'room') el.areaM2 = calculateAreaM2(el.width, el.height);
+      }
+      saveData();
+      renderCanvas();
+      updateInspector();
+      if (activeViewMode === '3d') update3DScene();
+    });
+  }
+  if (btnUp) {
+    btnUp.addEventListener('click', () => {
+      if (el.type === 'plant') {
+        el.radius = Math.min(250, Math.round(el.radius * 1.1));
+      } else {
+        el.width = Math.round(el.width * 1.1);
+        el.height = Math.round(el.height * 1.1);
+        if (el.type === 'room') el.areaM2 = calculateAreaM2(el.width, el.height);
+      }
+      saveData();
+      renderCanvas();
+      updateInspector();
+      if (activeViewMode === '3d') update3DScene();
+    });
+  }
+}
+
+function getPositionAndNudgeHTML(el, isWindowOrDoor = false) {
+  return `
+    <div class="position-control-box" style="margin-top:0.6rem;">
+      <label style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted);">
+        📍 Position & Feinjustierung
+      </label>
+      <div class="inspector-row">
+        <div class="inspector-field">
+          <label>Pos X (m)</label>
+          <input type="number" id="insp-posX" step="0.1" value="${(el.x / PIXELS_PER_METER).toFixed(2)}">
+        </div>
+        <div class="inspector-field">
+          <label>Pos Y (m)</label>
+          <input type="number" id="insp-posY" step="0.1" value="${(el.y / PIXELS_PER_METER).toFixed(2)}">
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
+        <span style="font-size:0.72rem; font-weight:700; color:var(--text-muted);">Schrittweite:</span>
+        <div class="btn-group" id="nudge-step-group">
+          <button class="btn btn-sm btn-nudge-step active" data-step="0.1">10 cm</button>
+          <button class="btn btn-sm btn-nudge-step" data-step="0.5">50 cm</button>
+        </div>
+      </div>
+
+      <div class="nudge-dpad" style="margin:0.35rem auto;">
+        <div style="grid-column: 2;"><button class="nudge-btn" data-dx="0" data-dy="-1" title="Nach oben schieben">⬆️</button></div>
+        <div style="grid-column: 1; grid-row: 2;"><button class="nudge-btn" data-dx="-1" data-dy="0" title="Nach links schieben">⬅️</button></div>
+        <div style="grid-column: 2; grid-row: 2; font-size:0.75rem; display:flex; align-items:center; justify-content:center; color:var(--text-muted);">✥</div>
+        <div style="grid-column: 3; grid-row: 2;"><button class="nudge-btn" data-dx="1" data-dy="0" title="Nach rechts schieben">➡️</button></div>
+        <div style="grid-column: 2; grid-row: 3;"><button class="nudge-btn" data-dx="0" data-dy="1" title="Nach unten schieben">⬇️</button></div>
+      </div>
+
+      ${isWindowOrDoor ? `
+        <div style="margin-top:0.35rem; border-top:1px solid var(--border); padding-top:0.35rem;">
+          <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:0.25rem;">
+            🪟 Schnell an Wand andocken:
+          </label>
+          <div class="dock-btn-grid">
+            <button class="dock-btn" data-dock="north">⬆️ An Nordwand</button>
+            <button class="dock-btn" data-dock="south">⬇️ An Südwand</button>
+            <button class="dock-btn" data-dock="west">⬅️ An Westwand</button>
+            <button class="dock-btn" data-dock="east">➡️ An Ostwand</button>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function bindPositionAndNudgeEvents(el) {
+  const xInput = document.getElementById('insp-posX');
+  const yInput = document.getElementById('insp-posY');
+
+  if (xInput) {
+    xInput.addEventListener('change', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+        el.x = Math.round(val * PIXELS_PER_METER);
+        saveData();
+        renderCanvas();
+        if (activeViewMode === '3d') update3DScene();
+      }
+    });
+  }
+
+  if (yInput) {
+    yInput.addEventListener('change', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val)) {
+        el.y = Math.round(val * PIXELS_PER_METER);
+        saveData();
+        renderCanvas();
+        if (activeViewMode === '3d') update3DScene();
+      }
+    });
+  }
+
+  let activeNudgeMeters = 0.1;
+  document.querySelectorAll('.btn-nudge-step').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-nudge-step').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeNudgeMeters = parseFloat(btn.dataset.step) || 0.1;
+    });
+  });
+
+  document.querySelectorAll('.nudge-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const dx = parseInt(btn.dataset.dx, 10) * Math.round(activeNudgeMeters * PIXELS_PER_METER);
+      const dy = parseInt(btn.dataset.dy, 10) * Math.round(activeNudgeMeters * PIXELS_PER_METER);
+      el.x += dx;
+      el.y += dy;
+      if (xInput) xInput.value = (el.x / PIXELS_PER_METER).toFixed(2);
+      if (yInput) yInput.value = (el.y / PIXELS_PER_METER).toFixed(2);
+      saveData();
+      renderCanvas();
+      if (activeViewMode === '3d') update3DScene();
+    });
+  });
+
+  document.querySelectorAll('.dock-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const dockDir = btn.dataset.dock;
+      const rooms = (appData.floors[currentFloor] || []).filter(r => r.type === 'room');
+      if (rooms.length === 0) {
+        alert('Bitte ziehe zuerst einen Raum auf, an den das Fenster andocken kann.');
+        return;
+      }
+
+      let targetRoom = rooms[0];
+      let minDist = 999999;
+      rooms.forEach(r => {
+        const dist = Math.hypot((r.x + r.width / 2) - (el.x + el.width / 2), (r.y + r.height / 2) - (el.y + el.height / 2));
+        if (dist < minDist) { minDist = dist; targetRoom = r; }
+      });
+
+      if (dockDir === 'north') {
+        if (el.width < el.height) { const tmp = el.width; el.width = el.height; el.height = tmp; }
+        el.x = Math.round(targetRoom.x + (targetRoom.width - el.width) / 2);
+        el.y = Math.round(targetRoom.y - el.height / 2);
+      } else if (dockDir === 'south') {
+        if (el.width < el.height) { const tmp = el.width; el.width = el.height; el.height = tmp; }
+        el.x = Math.round(targetRoom.x + (targetRoom.width - el.width) / 2);
+        el.y = Math.round(targetRoom.y + targetRoom.height - el.height / 2);
+      } else if (dockDir === 'west') {
+        if (el.height < el.width) { const tmp = el.width; el.width = el.height; el.height = tmp; }
+        el.x = Math.round(targetRoom.x - el.width / 2);
+        el.y = Math.round(targetRoom.y + (targetRoom.height - el.height) / 2);
+      } else if (dockDir === 'east') {
+        if (el.height < el.width) { const tmp = el.width; el.width = el.height; el.height = tmp; }
+        el.x = Math.round(targetRoom.x + targetRoom.width - el.width / 2);
+        el.y = Math.round(targetRoom.y + (targetRoom.height - el.height) / 2);
+      }
+
+      if (xInput) xInput.value = (el.x / PIXELS_PER_METER).toFixed(2);
+      if (yInput) yInput.value = (el.y / PIXELS_PER_METER).toFixed(2);
+
+      const fwInput = document.getElementById('insp-fw');
+      const fhInput = document.getElementById('insp-fh');
+      if (fwInput) fwInput.value = (el.width / PIXELS_PER_METER).toFixed(2);
+      if (fhInput) fhInput.value = (el.height / PIXELS_PER_METER).toFixed(2);
+
+      saveData();
+      renderCanvas();
+      if (activeViewMode === '3d') update3DScene();
+    });
+  });
+}
+
 function updateInspector() {
   const panel = document.getElementById('inspector-content');
   if (!selectedElement) {
@@ -2661,18 +2906,10 @@ function updateInspector() {
         </div>
       </div>
 
-      <div class="inspector-row">
-        <div class="inspector-field">
-          <label>Position X (m)</label>
-          <input type="number" id="insp-room-x" step="0.1" value="${(el.x / PIXELS_PER_METER).toFixed(2)}">
-        </div>
-        <div class="inspector-field">
-          <label>Position Y (m)</label>
-          <input type="number" id="insp-room-y" step="0.1" value="${(el.y / PIXELS_PER_METER).toFixed(2)}">
-        </div>
-      </div>
+      ${getScaleButtonsHTML()}
+      ${getPositionAndNudgeHTML(el, false)}
 
-      <div class="inspector-field">
+      <div class="inspector-field" style="margin-top:0.6rem;">
         <label>Bodenbelag</label>
         <select id="insp-surface" class="select-input">
           <option value="laminat" ${el.surface === 'laminat' ? 'selected' : ''}>Laminat / Holz</option>
@@ -2698,6 +2935,8 @@ function updateInspector() {
       </div>
     `;
 
+    bindScaleButtons(el);
+    bindPositionAndNudgeEvents(el);
     bindTextureControlEvents(el);
 
     document.getElementById('insp-name').addEventListener('input', (e) => {
@@ -2710,24 +2949,6 @@ function updateInspector() {
       el.surface = e.target.value;
       saveData();
       renderCanvas();
-    });
-
-    document.getElementById('insp-room-x').addEventListener('change', (e) => {
-      const val = parseFloat(e.target.value);
-      if (!isNaN(val)) {
-        el.x = Math.round(val * PIXELS_PER_METER);
-        saveData();
-        renderCanvas();
-      }
-    });
-
-    document.getElementById('insp-room-y').addEventListener('change', (e) => {
-      const val = parseFloat(e.target.value);
-      if (!isNaN(val)) {
-        el.y = Math.round(val * PIXELS_PER_METER);
-        saveData();
-        renderCanvas();
-      }
     });
 
     // Breite in Metern ändern
@@ -2814,21 +3035,13 @@ function updateInspector() {
         </div>
       </div>
 
-      <div class="inspector-row">
-        <div class="inspector-field">
-          <label>Position X (m)</label>
-          <input type="number" id="insp-wall-x" step="0.1" value="${(el.x / PIXELS_PER_METER).toFixed(2)}">
-        </div>
-        <div class="inspector-field">
-          <label>Position Y (m)</label>
-          <input type="number" id="insp-wall-y" step="0.1" value="${(el.y / PIXELS_PER_METER).toFixed(2)}">
-        </div>
-      </div>
+      ${getScaleButtonsHTML()}
 
-      <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+      <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
         <button id="btn-insp-rotate-wall" class="btn btn-sm btn-secondary full-width">🔄 90° Drehen (horizontal/vertikal)</button>
       </div>
 
+      ${getPositionAndNudgeHTML(el, false)}
       ${getTextureControlHTML(el)}
 
       <div class="tip-box" style="margin-top:0.6rem; padding:0.6rem;">
@@ -2841,30 +3054,14 @@ function updateInspector() {
       </div>
     `;
 
+    bindScaleButtons(el);
+    bindPositionAndNudgeEvents(el);
     bindTextureControlEvents(el);
 
     document.getElementById('insp-wall-label').addEventListener('input', (e) => {
       el.label = e.target.value;
       saveData();
       renderCanvas();
-    });
-
-    document.getElementById('insp-wall-x').addEventListener('change', (e) => {
-      const val = parseFloat(e.target.value);
-      if (!isNaN(val)) {
-        el.x = Math.round(val * PIXELS_PER_METER);
-        saveData();
-        renderCanvas();
-      }
-    });
-
-    document.getElementById('insp-wall-y').addEventListener('change', (e) => {
-      const val = parseFloat(e.target.value);
-      if (!isNaN(val)) {
-        el.y = Math.round(val * PIXELS_PER_METER);
-        saveData();
-        renderCanvas();
-      }
     });
 
     document.getElementById('insp-ww').addEventListener('change', (e) => {
@@ -2893,6 +3090,7 @@ function updateInspector() {
       document.getElementById('insp-wh').value = (el.height / PIXELS_PER_METER).toFixed(2);
       saveData();
       renderCanvas();
+      if (activeViewMode === '3d') update3DScene();
     });
 
     document.getElementById('btn-insp-del').addEventListener('click', () => {
@@ -2934,57 +3132,13 @@ function updateInspector() {
         </div>
       </div>
 
+      ${getScaleButtonsHTML()}
+
       <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
         <button id="btn-insp-rotate" class="btn btn-sm btn-secondary full-width">🔄 90° Drehen</button>
       </div>
 
-      <!-- Präzise Positionierung & Wand-Andockung -->
-      <div class="position-control-box" style="margin-top:0.5rem;">
-        <label style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted);">
-          📍 Position & Feinjustierung
-        </label>
-        <div class="inspector-row">
-          <div class="inspector-field">
-            <label>Pos X (m)</label>
-            <input type="number" id="insp-posX" step="0.1" value="${(el.x / PIXELS_PER_METER).toFixed(2)}">
-          </div>
-          <div class="inspector-field">
-            <label>Pos Y (m)</label>
-            <input type="number" id="insp-posY" step="0.1" value="${(el.y / PIXELS_PER_METER).toFixed(2)}">
-          </div>
-        </div>
-
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
-          <span style="font-size:0.72rem; font-weight:700; color:var(--text-muted);">Schrittweite:</span>
-          <div class="btn-group" id="nudge-step-group">
-            <button class="btn btn-sm btn-nudge-step active" data-step="0.1">10 cm</button>
-            <button class="btn btn-sm btn-nudge-step" data-step="0.5">50 cm</button>
-          </div>
-        </div>
-
-        <div class="nudge-dpad" style="margin:0.35rem auto;">
-          <div style="grid-column: 2;"><button class="nudge-btn" data-dx="0" data-dy="-1" title="Nach oben schieben">⬆️</button></div>
-          <div style="grid-column: 1; grid-row: 2;"><button class="nudge-btn" data-dx="-1" data-dy="0" title="Nach links schieben">⬅️</button></div>
-          <div style="grid-column: 2; grid-row: 2; font-size:0.75rem; display:flex; align-items:center; justify-content:center; color:var(--text-muted);">✢</div>
-          <div style="grid-column: 3; grid-row: 2;"><button class="nudge-btn" data-dx="1" data-dy="0" title="Nach rechts schieben">➡️</button></div>
-          <div style="grid-column: 2; grid-row: 3;"><button class="nudge-btn" data-dx="0" data-dy="1" title="Nach unten schieben">⬇️</button></div>
-        </div>
-
-        ${isWindow || isDoor ? `
-          <div style="margin-top:0.35rem; border-top:1px solid var(--border); padding-top:0.35rem;">
-            <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:0.25rem;">
-              🪟 Schnell an Wand andocken:
-            </label>
-            <div class="dock-btn-grid">
-              <button class="dock-btn" data-dock="north">⬆️ An Nordwand</button>
-              <button class="dock-btn" data-dock="south">⬇️ An Südwand</button>
-              <button class="dock-btn" data-dock="west">⬅️ An Westwand</button>
-              <button class="dock-btn" data-dock="east">➡️ An Ostwand</button>
-            </div>
-          </div>
-        ` : ''}
-      </div>
-
+      ${getPositionAndNudgeHTML(el, isWindow || isDoor)}
       ${!isWindow && !isStairs ? getTextureControlHTML(el) : ''}
 
       ${isStairs ? `
@@ -3006,6 +3160,8 @@ function updateInspector() {
       </div>
     `;
 
+    bindScaleButtons(el);
+    bindPositionAndNudgeEvents(el);
     if (!isWindow && !isStairs) {
       bindTextureControlEvents(el);
     }
@@ -3030,6 +3186,7 @@ function updateInspector() {
         el.width = Math.round(val * PIXELS_PER_METER);
         saveData();
         renderCanvas();
+        if (activeViewMode === '3d') update3DScene();
       }
     });
 
@@ -3039,96 +3196,8 @@ function updateInspector() {
         el.height = Math.round(val * PIXELS_PER_METER);
         saveData();
         renderCanvas();
-      }
-    });
-
-    document.getElementById('insp-posX').addEventListener('change', (e) => {
-      const val = parseFloat(e.target.value);
-      if (!isNaN(val)) {
-        el.x = Math.round(val * PIXELS_PER_METER);
-        saveData();
-        renderCanvas();
-      }
-    });
-
-    document.getElementById('insp-posY').addEventListener('change', (e) => {
-      const val = parseFloat(e.target.value);
-      if (!isNaN(val)) {
-        el.y = Math.round(val * PIXELS_PER_METER);
-        saveData();
-        renderCanvas();
-      }
-    });
-
-    // Nudge D-Pad Schrittweite & Buttons
-    let activeNudgeMeters = 0.1;
-    document.querySelectorAll('.btn-nudge-step').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.btn-nudge-step').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        activeNudgeMeters = parseFloat(btn.dataset.step) || 0.1;
-      });
-    });
-
-    document.querySelectorAll('.nudge-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const dx = parseInt(btn.dataset.dx, 10) * Math.round(activeNudgeMeters * PIXELS_PER_METER);
-        const dy = parseInt(btn.dataset.dy, 10) * Math.round(activeNudgeMeters * PIXELS_PER_METER);
-        el.x += dx;
-        el.y += dy;
-        document.getElementById('insp-posX').value = (el.x / PIXELS_PER_METER).toFixed(2);
-        document.getElementById('insp-posY').value = (el.y / PIXELS_PER_METER).toFixed(2);
-        saveData();
-        renderCanvas();
         if (activeViewMode === '3d') update3DScene();
-      });
-    });
-
-    // Wand-Andockung (Nord, Süd, West, Ost)
-    document.querySelectorAll('.dock-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const dockDir = btn.dataset.dock;
-        const rooms = (appData.floors[currentFloor] || []).filter(r => r.type === 'room');
-        if (rooms.length === 0) {
-          alert('Bitte ziehe zuerst einen Raum auf, an den das Fenster andocken kann.');
-          return;
-        }
-
-        // Nächstgelegenen Raum ermitteln
-        let targetRoom = rooms[0];
-        let minDist = 999999;
-        rooms.forEach(r => {
-          const dist = Math.hypot((r.x + r.width / 2) - (el.x + el.width / 2), (r.y + r.height / 2) - (el.y + el.height / 2));
-          if (dist < minDist) { minDist = dist; targetRoom = r; }
-        });
-
-        if (dockDir === 'north') {
-          if (el.width < el.height) { const tmp = el.width; el.width = el.height; el.height = tmp; }
-          el.x = Math.round(targetRoom.x + (targetRoom.width - el.width) / 2);
-          el.y = Math.round(targetRoom.y - el.height / 2);
-        } else if (dockDir === 'south') {
-          if (el.width < el.height) { const tmp = el.width; el.width = el.height; el.height = tmp; }
-          el.x = Math.round(targetRoom.x + (targetRoom.width - el.width) / 2);
-          el.y = Math.round(targetRoom.y + targetRoom.height - el.height / 2);
-        } else if (dockDir === 'west') {
-          if (el.height < el.width) { const tmp = el.width; el.width = el.height; el.height = tmp; }
-          el.x = Math.round(targetRoom.x - el.width / 2);
-          el.y = Math.round(targetRoom.y + (targetRoom.height - el.height) / 2);
-        } else if (dockDir === 'east') {
-          if (el.height < el.width) { const tmp = el.width; el.width = el.height; el.height = tmp; }
-          el.x = Math.round(targetRoom.x + targetRoom.width - el.width / 2);
-          el.y = Math.round(targetRoom.y + (targetRoom.height - el.height) / 2);
-        }
-
-        document.getElementById('insp-posX').value = (el.x / PIXELS_PER_METER).toFixed(2);
-        document.getElementById('insp-posY').value = (el.y / PIXELS_PER_METER).toFixed(2);
-        document.getElementById('insp-fw').value = (el.width / PIXELS_PER_METER).toFixed(2);
-        document.getElementById('insp-fh').value = (el.height / PIXELS_PER_METER).toFixed(2);
-
-        saveData();
-        renderCanvas();
-        if (activeViewMode === '3d') update3DScene();
-      });
+      }
     });
 
     document.getElementById('btn-insp-rotate').addEventListener('click', () => {
@@ -3154,9 +3223,13 @@ function updateInspector() {
       </div>
       <div class="inspector-field">
         <label>Größe / Kronendurchmesser (cm)</label>
-        <input type="number" id="insp-plant-r" min="15" max="100" value="${Math.round(el.radius * 2.5)}">
+        <input type="number" id="insp-plant-r" min="15" max="150" value="${Math.round(el.radius * 2.5)}">
       </div>
-      <div class="tip-box" style="margin-top: 0.5rem; padding: 0.6rem;">
+
+      ${getScaleButtonsHTML()}
+      ${getPositionAndNudgeHTML(el, false)}
+
+      <div class="tip-box" style="margin-top: 0.6rem; padding: 0.6rem;">
         <strong>Tipp für Großpflanzen:</strong>
         <p style="font-size:0.82rem; margin-top:0.3rem;">Auf Teppich & Laminat stets Untersetzer mit Pflanzrollen verwenden!</p>
       </div>
@@ -3164,6 +3237,9 @@ function updateInspector() {
         <button id="btn-insp-del" class="btn btn-sm btn-danger full-width">🗑️ Pflanze entfernen</button>
       </div>
     `;
+
+    bindScaleButtons(el);
+    bindPositionAndNudgeEvents(el);
 
     document.getElementById('insp-plant-name').addEventListener('input', (e) => {
       el.name = e.target.value;
@@ -3177,6 +3253,7 @@ function updateInspector() {
         el.radius = Math.round(cm / 2.5);
         saveData();
         renderCanvas();
+        if (activeViewMode === '3d') update3DScene();
       }
     });
 

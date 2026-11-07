@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CleanHome – Dein Reinigungs- & Haushaltsassistent mit 2D/3D Planer</title>
+  
+  <!-- PWA & Mobile App Unterstützung (iOS & Android) -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="CleanHome">
+  
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Three.js & OrbitControls für interaktive 3D-Hausansicht -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">✨</div>
+        <div>
+          <h1>CleanHome Assistent & Raumdesigner</h1>
+          <p class="subtitle">Putzplan, 2D/3D Grundriss, Möbelpool, Pflanzenpflege & Fleckenhilfe</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-quick-sample" class="btn btn-secondary" title="Beispiel-Haus mit 3 Etagen, 50m² Wohnküche, Treppe und Pflanzen laden">
+          ⚡ Muster-Haus laden
+        </button>
+        <button id="btn-export-data" class="btn btn-ghost" title="Daten sichern">💾 Export</button>
+        <button id="btn-import-data" class="btn btn-ghost" title="Daten wiederherstellen">📂 Import</button>
+        <input type="file" id="file-import" accept=".json" style="display:none">
+      </div>
+    </header>
+
+    <!-- Navigation Bar -->
+    <nav class="main-nav">
+      <button class="nav-tab active" data-tab="tab-planner">
+        <span class="icon">📅</span> Putz- & Terminplaner
+        <span id="badge-due" class="badge">0</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-floorplan">
+        <span class="icon">🏠</span> 2D / 3D Raum- & Bodenplaner
+      </button>
+      <button class="nav-tab" data-tab="tab-plants">
+        <span class="icon">🌿</span> Pflanzenmanager
+        <span id="badge-plants" class="badge">0</span>
+      </button>
+      <button class="nav-tab" data-tab="tab-shopping">
+        <span class="icon">🛒</span> Einkaufsliste
+      </button>
+      <button class="nav-tab" data-tab="tab-stains">
+        <span class="icon">💡</span> Flecken- & Putztipps
+      </button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="app-content">
+
+      <!-- ================= 1. PUTZ- & TERMINPLANER ================= -->
+      <section id="tab-planner" class="tab-pane active">
+        <div class="planner-grid">
+          <div class="tasks-column">
+            <div class="section-card">
+              <div class="card-header">
+                <h2>Heute fällige Aufgaben</h2>
+                <div class="filter-controls">
+                  <select id="filter-floor-task" class="select-input">
+                    <option value="all">Alle Etagen</option>
+                    <option value="EG">Erdgeschoss (EG)</option>
+                    <option value="1.OG">1. Obergeschoss</option>
+                    <option value="2.OG">2. OG / Dachgeschoss</option>
+                  </select>
+                </div>
+              </div>
+              <div id="tasks-due-list" class="task-list"></div>
+            </div>
+
+            <div class="section-card">
+              <div class="card-header">
+                <h2>Alle regelmäßigen Aufgaben & Termine</h2>
+                <span class="muted-text">Nach Intervallen geordnet</span>
+              </div>
+              <div id="tasks-all-list" class="task-list"></div>
+            </div>
+          </div>
+
+          <div class="sidebar-column">
+            <div class="section-card">
+              <h3>➕ Neue Aufgabe anlegen</h3>
+              <form id="form-new-task" class="form-stack">
+                <div class="form-group">
+                  <label for="task-title">Titel / Tätigkeit</label>
+                  <input type="text" id="task-title" required placeholder="z.B. Offene Treppe saugen & Stufen abwischen">
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="task-floor">Etage</label>
+                    <select id="task-floor">
+                      <option value="EG">EG</option>
+                      <option value="1.OG">1. OG</option>
+                      <option value="2.OG">2. OG / DG</option>
+                      <option value="Treppe">Treppe (über alle 3 Etagen)</option>
+                      <option value="Gesamtes Haus">Gesamtes Haus</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="task-room">Raum / Bereich</label>
+                    <input type="text" id="task-room" placeholder="z.B. Wohn-/Essküche, Gäste-WC">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="task-surface">Bodenbelag / Material</label>
+                    <select id="task-surface">
+                      <option value="alle">Gemischt / Neutral</option>
+                      <option value="Fliesen">Fliesen (feucht wischen)</option>
+                      <option value="Laminat">Laminat (nebelfeucht)</option>
+                      <option value="Teppich">Teppich (saugen/shampoonieren)</option>
+                      <option value="Glas">Fenster / Glasflächen</option>
+                      <option value="Holz">Holzstufen (Treppe)</option>
+                      <option value="Sanitaer">Sanitärkeramik (Gäste-WC)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="task-interval">Intervall (Tage)</label>
+                    <input type="number" id="task-interval" min="1" value="7" required>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="task-notes">Reinigungstipp / Hinweis</label>
+                  <input type="text" id="task-notes" placeholder="z.B. pH-neutrales Wischmittel, nebelfeucht">
+                </div>
+
+                <button type="submit" class="btn btn-primary full-width">Aufgabe speichern</button>
+              </form>
+            </div>
+
+            <div class="section-card tip-box">
+              <h4>🧹 Schnelle Pflege-Faustregeln</h4>
+              <ul class="bullet-list">
+                <li><strong>Laminat (50 m² Raum):</strong> Nur nebelfeucht wischen, Fugen vor stehendem Wasser schützen!</li>
+                <li><strong>Fliesen:</strong> Fettlöser in der Küche, Essigreiniger/Zitronensäure gegen Kalk im Gäste-WC.</li>
+                <li><strong>Teppiche:</strong> Regelmäßig tief absaugen, Flecken nie reiben, nur abtupfen.</li>
+                <li><strong>3-Etagen-Treppe:</strong> Von oben nach unten saugen, Geländer nebelfeucht abwischen.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 2. 2D / 3D RAUM- & BODENPLANER ================= -->
+      <section id="tab-floorplan" class="tab-pane">
+        <div class="floorplan-layout">
+          <!-- Obere Toolbar mit Etagen und 2D / 3D Umschaltung -->
+          <div class="floorplan-toolbar section-card">
+            <div class="toolbar-group">
+              <label><strong>Ansicht:</strong></label>
+              <div class="btn-group" id="view-mode-selector">
+                <button class="btn btn-sm btn-viewmode active" data-mode="2d">📐 2D Grundriss</button>
+                <button class="btn btn-sm btn-viewmode" data-mode="3d">🕶️ 3D Haus-Ansicht</button>
+              </div>
+            </div>
+
+            <div class="toolbar-group">
+              <label><strong>Etage:</strong></label>
+              <div class="btn-group" id="floor-selector">
+                <button class="btn btn-sm btn-floor active" data-floor="EG">EG (50m² Wohnküche + WC)</button>
+                <button class="btn btn-sm btn-floor" data-floor="1.OG">1. OG (Flur, Bad, Schlaf)</button>
+                <button class="btn btn-sm btn-floor" data-floor="2.OG">2. OG / DG</button>
+                <button class="btn btn-sm btn-floor btn-all-floors mode-3d-only" data-floor="ALL" style="display:none;" title="Alle 3 Etagen als komplettes Haus übereinander anzeigen">🏢 Gesamtes Haus (3D)</button>
+              </div>
+            </div>
+
+            <!-- Werkzeuge nur im 2D-Modus -->
+            <div class="toolbar-group mode-2d-only">
+              <label><strong>Werkzeuge:</strong></label>
+              <div class="btn-group" id="tool-selector">
+                <button class="btn btn-sm btn-tool active" data-tool="select" title="Elemente anklicken, verschieben & Umriss an den Ecken ziehen">✋ Auswählen & Bewegen</button>
+                <button class="btn btn-sm btn-tool" data-tool="room" title="Klicke & ziehe mit der Maus, um ein neues Zimmer mit m² aufzuziehen">🔲 Raum aufziehen</button>
+                <button class="btn btn-sm btn-tool" data-tool="wall" title="Klicke & ziehe mit der Maus, um eine Trennwand zu ziehen">🧱 Wand einziehen</button>
+              </div>
+            </div>
+
+            <div class="toolbar-group mode-2d-only" id="surface-selector-group">
+              <label><strong>Bodenart:</strong></label>
+              <select id="fp-surface-type" class="select-input">
+                <option value="laminat">Laminat / Holz (warm)</option>
+                <option value="fliesen">Fliesen (modernes Raster)</option>
+                <option value="teppich">Teppich (weiche Struktur)</option>
+              </select>
+            </div>
+
+            <div class="toolbar-actions">
+              <button id="btn-open-pano-generator" class="btn btn-sm btn-primary" title="Raum automatisch aus einem Panorama-Foto generieren">📸 Panorama-Raumgenerator</button>
+              <button id="btn-draw-help" class="btn btn-sm btn-secondary" title="Kurzanleitung zum Zeichnen anzeigen">❓ Zeichen-Hilfe</button>
+              <button id="btn-toggle-catalog" class="btn btn-sm btn-secondary">🛋️ Möbel- & Elementpool</button>
+              <button id="btn-reset-sample-plan" class="btn btn-sm btn-secondary" title="Musterhaus laden">📐 Muster laden</button>
+              <button id="btn-clear-floor" class="btn btn-sm btn-danger" title="Aktuelle Etage leeren">🗑️ Leeren</button>
+            </div>
+          </div>
+
+          <!-- Arbeitsbereich: 2D Canvas oder 3D Viewport + Auswahlpool + Inspektor -->
+          <div class="floorplan-workspace-container">
+            
+            <!-- Linker Möbel- & Element-Auswahlpool (Drawer / Sidebar) -->
+            <aside id="furniture-catalog" class="catalog-sidebar section-card">
+              <div class="catalog-header">
+                <h3>🛋️ Auswahlpool</h3>
+                <span class="muted-text">Klicke ein Element zum Platzieren</span>
+              </div>
+
+              <!-- Fenster & Treppe & Wände -->
+              <div class="catalog-section">
+                <h4>🧱 Wände, Fenster & Treppe</h4>
+                <div class="catalog-grid">
+                  <div class="catalog-item" data-type="wand_h" data-w="200" data-h="14" data-label="Trennwand horizontal">
+                    <div class="cat-icon">🧱</div>
+                    <span>Trennwand horizontal (5 m)</span>
+                  </div>
+                  <div class="catalog-item" data-type="wand_v" data-w="14" data-h="200" data-label="Trennwand vertikal">
+                    <div class="cat-icon">🧱</div>
+                    <span>Trennwand vertikal (5 m)</span>
+                  </div>
+                  <div class="catalog-item" data-type="treppe_auf" data-w="180" data-h="90" data-label="Treppe aufwärts (ins nächste OG)">
+                    <div class="cat-icon">🪜</div>
+                    <span>Treppe aufwärts (⬆ ins OG)</span>
+                  </div>
+                  <div class="catalog-item" data-type="treppe_ab" data-w="180" data-h="90" data-label="Treppe abwärts (ins EG)">
+                    <div class="cat-icon">🪜</div>
+                    <span>Treppe abwärts (⬇ ins EG)</span>
+                  </div>
+                  <div class="catalog-item" data-type="fenster" data-w="120" data-h="20" data-label="Fenster 1,2 m">
+                    <div class="cat-icon">🪟</div>
+                    <span>Fenster (1,2 m)</span>
+                  </div>
+                  <div class="catalog-item" data-type="fenster_gross" data-w="220" data-h="22" data-label="Panoramafenster 2,5 m">
+                    <div class="cat-icon">🪟</div>
+                    <span>Panorama-Fenster (2,5 m)</span>
+                  </div>
+                  <div class="catalog-item" data-type="tuer" data-w="70" data-h="20" data-label="Zimmertür">
+                    <div class="cat-icon">🚪</div>
+                    <span>Zimmertür (mit Schwenkbereich)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Wohnzimmer -->
+              <div class="catalog-section">
+                <h4>🛋️ Wohnzimmer</h4>
+                <div class="catalog-grid">
+                  <div class="catalog-item" data-type="couch_eck" data-w="240" data-h="160" data-label="Große Eck-Couch (L-Form)">
+                    <div class="cat-icon">🛋️</div>
+                    <span>L-Eckcouch (Designer)</span>
+                  </div>
+                  <div class="catalog-item" data-type="couch_3er" data-w="180" data-h="85" data-label="3er Sofa">
+                    <div class="cat-icon">🛋️</div>
+                    <span>3er Sofa (gepolstert)</span>
+                  </div>
+                  <div class="catalog-item" data-type="couchtisch" data-w="110" data-h="65" data-label="Couchtisch Holz">
+                    <div class="cat-icon">🪵</div>
+                    <span>Couchtisch Holz</span>
+                  </div>
+                  <div class="catalog-item" data-type="tv_board" data-w="160" data-h="45" data-label="TV Sideboard">
+                    <div class="cat-icon">📺</div>
+                    <span>TV Sideboard</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Essbereich & Küche -->
+              <div class="catalog-section">
+                <h4>🍽️ Essen & Küche</h4>
+                <div class="catalog-grid">
+                  <div class="catalog-item" data-type="tisch_gross" data-w="190" data-h="100" data-label="Esstisch mit 6 Stühlen">
+                    <div class="cat-icon">🍽️</div>
+                    <span>Esstisch + 6 Stühle</span>
+                  </div>
+                  <div class="catalog-item" data-type="tisch_rund" data-w="110" data-h="110" data-label="Runder Esstisch + 4 Stühle">
+                    <div class="cat-icon">🪑</div>
+                    <span>Runder Esstisch</span>
+                  </div>
+                  <div class="catalog-item" data-type="kuecheninsel" data-w="200" data-h="90" data-label="Kücheninsel (Herd & Spüle)">
+                    <div class="cat-icon">🍳</div>
+                    <span>Kücheninsel mit Herd</span>
+                  </div>
+                  <div class="catalog-item" data-type="kuechenzeile" data-w="240" data-h="65" data-label="Küchenzeile">
+                    <div class="cat-icon">🧊</div>
+                    <span>Küchenzeile Schränke</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Bad & Gäste-WC -->
+              <div class="catalog-section">
+                <h4>🚽 Bad & Gäste-WC</h4>
+                <div class="catalog-grid">
+                  <div class="catalog-item" data-type="waschtisch" data-w="90" data-h="55" data-label="Waschtisch mit Armatur">
+                    <div class="cat-icon">🚰</div>
+                    <span>Waschtisch modern</span>
+                  </div>
+                  <div class="catalog-item" data-type="wc_haenge" data-w="60" data-h="65" data-label="Gäste-WC (Hänge-WC)">
+                    <div class="cat-icon">🚽</div>
+                    <span>Gäste-WC Hänge-WC</span>
+                  </div>
+                  <div class="catalog-item" data-type="dusche" data-w="95" data-h="95" data-label="Glasdusche">
+                    <div class="cat-icon">🚿</div>
+                    <span>Glasdusche</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Pflanzen & Teppiche -->
+              <div class="catalog-section">
+                <h4>🌿 Pflanzen & Teppiche</h4>
+                <div class="catalog-grid">
+                  <div class="catalog-item" data-type="pflanze_gross" data-w="60" data-h="60" data-label="Große Monstera">
+                    <div class="cat-icon">🪴</div>
+                    <span>Große Monstera</span>
+                  </div>
+                  <div class="catalog-item" data-type="pflanze_ficus" data-w="55" data-h="55" data-label="Ficus Großbaum">
+                    <div class="cat-icon">🌳</div>
+                    <span>Ficus Großbaum</span>
+                  </div>
+                  <div class="catalog-item" data-type="teppich_insel" data-w="220" data-h="160" data-label="Wohnbereich Teppich">
+                    <div class="cat-icon">🧶</div>
+                    <span>Kuschel-Teppichinsel</span>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <!-- Zentraler Zeichenbereich (2D Canvas oder 3D Three.js Container) -->
+            <div class="viewport-main">
+              <!-- 2D View -->
+              <div id="wrapper-2d" class="canvas-wrapper">
+                <div class="canvas-info-banner">
+                  <div class="canvas-banner-left">
+                    <span>💡 <strong>Tipp:</strong> Klicke einen Raum an, um die <strong>m² exakt per Tastatur oder Ziehen</strong> anzupassen. Eckpunkte am Raumrahmen verändern den Umriss.</span>
+                  </div>
+                  <div class="canvas-banner-right">
+                    <span id="canvas-scale-info">Maßstab: 1 m ≈ 40 px</span>
+                    <span id="canvas-coords">X: 0, Y: 0</span>
+                  </div>
+                </div>
+                <div class="canvas-scroll-container">
+                  <canvas id="floorCanvas" width="1050" height="650"></canvas>
+                </div>
+              </div>
+
+              <!-- 3D View Container -->
+              <div id="wrapper-3d" class="three-wrapper" style="display:none;">
+                <div class="three-info-banner">
+                  <span>👓 <strong>3D-Ansicht:</strong> Linke Maustaste gedrückt halten zum Drehen | Rechte Taste zum Verschieben | Scrollrad zum Zoomen.</span>
+                  <div class="three-view-buttons">
+                    <button id="btn-3d-toggle-roof" class="btn btn-sm btn-secondary" title="Dach abnehmen oder aufsetzen">🏠 Dach: An</button>
+                    <button id="btn-3d-cam-iso" class="btn btn-sm btn-ghost">📐 3D Perspektive</button>
+                    <button id="btn-3d-cam-front" class="btn btn-sm btn-ghost">🏠 Vorderansicht</button>
+                    <button id="btn-3d-cam-top" class="btn btn-sm btn-ghost">🔝 Draufsicht</button>
+                  </div>
+                </div>
+                <div id="three-container" class="three-canvas-container"></div>
+              </div>
+            </div>
+
+            <!-- Rechter Raum- & Element-Inspektor -->
+            <aside class="floorplan-inspector section-card">
+              <h3>🔍 Element-Inspektor</h3>
+              <div id="inspector-content">
+                <p class="muted-text">Klicke ein Zimmer, eine Treppe, ein Fenster oder ein Möbelstück auf dem Plan an, um Maße (m²), Umriss und Reinigungsdetails direkt anzupassen.</p>
+              </div>
+            </aside>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3. PFLANZENMANAGER ================= -->
+      <section id="tab-plants" class="tab-pane">
+        <div class="planner-grid">
+          <div class="tasks-column">
+            <div class="section-card">
+              <div class="card-header">
+                <h2>🌿 Deine Zimmer- & Großpflanzen</h2>
+                <span class="muted-text">Erinnerungen an Gießen, Düngen & Laub entfernen</span>
+              </div>
+              <div id="plants-list" class="plants-grid">
+                <!-- Wird dynamisch befüllt -->
+              </div>
+            </div>
+          </div>
+
+          <div class="sidebar-column">
+            <div class="section-card">
+              <h3>➕ Neue Pflanze hinzufügen</h3>
+              <form id="form-new-plant" class="form-stack">
+                <div class="form-group">
+                  <label for="plant-name">Pflanzenart / Name</label>
+                  <input type="text" id="plant-name" required placeholder="z.B. Große Monstera, Ficus Benjamini, Palme">
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="plant-location">Standort / Raum</label>
+                    <input type="text" id="plant-location" required placeholder="z.B. Wohnzimmer (Südfenster)">
+                  </div>
+                  <div class="form-group">
+                    <label for="plant-water-interval">Gieß-Intervall (Tage)</label>
+                    <input type="number" id="plant-water-interval" min="1" value="5" required>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="plant-fertilize-interval">Dünge-Intervall (Tage)</label>
+                    <input type="number" id="plant-fertilize-interval" min="7" value="21" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="plant-leaves-check">Laub / Blätterverlust?</label>
+                    <select id="plant-leaves-check">
+                      <option value="yes">Ja (erfordert Laub aufsammeln)</option>
+                      <option value="no">Gering / Nein</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="plant-notes">Pflegehinweis</label>
+                  <input type="text" id="plant-notes" placeholder="z.B. Staunässe vermeiden, Blätter feucht abwischen">
+                </div>
+
+                <button type="submit" class="btn btn-primary full-width">Pflanze speichern</button>
+              </form>
+            </div>
+
+            <div class="section-card tip-box">
+              <h4>🌱 Tipps für laubwerfende Großpflanzen</h4>
+              <ul class="bullet-list">
+                <li><strong>Blattfall im Herbst/Winter:</strong> Häufig zu wenig Licht oder trockene Heizungsluft. Pflanze besprühen!</li>
+                <li><strong>Boden um die Pflanze:</strong> Bei Teppich Untersetzer mit Rollen verwenden, damit keine Wasserflecken entstehen.</li>
+                <li><strong>Düngen:</strong> Im Winter (Nov-Feb) Dosis halbieren oder pausieren.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 4. EINKAUFSLISTE ================= -->
+      <section id="tab-shopping" class="tab-pane">
+        <div class="planner-grid">
+          <div class="tasks-column">
+            <div class="section-card">
+              <div class="card-header">
+                <h2>Einkaufsliste für Haushalt & Reinigung</h2>
+                <button id="btn-clear-completed-shopping" class="btn btn-sm btn-ghost">Erledigte entfernen</button>
+              </div>
+
+              <!-- Schnellauswahl-Chips -->
+              <div class="quick-chips">
+                <span class="chips-label">Schnell hinzufügen:</span>
+                <button class="chip-btn" data-item="Allzweckreiniger">🧴 Allzweckreiniger</button>
+                <button class="chip-btn" data-item="Laminat- & Parkettpflege">🪵 Laminatpflege</button>
+                <button class="chip-btn" data-item="Fliesen- & Badreiniger">🛁 Badreiniger</button>
+                <button class="chip-btn" data-item="Glasreiniger & Mikrofasertücher">🪟 Glasreiniger</button>
+                <button class="chip-btn" data-item="Grünpflanzendünger">🌱 Grünpflanzendünger</button>
+                <button class="chip-btn" data-item="Staubsaugerbeutel & Filter">🧹 Staubsaugerbeutel</button>
+                <button class="chip-btn" data-item="Teppichschaum / Fleckenspray">🧼 Teppichschaum</button>
+                <button class="chip-btn" data-item="Gallseife">🧼 Gallseife</button>
+              </div>
+
+              <div id="shopping-list" class="shopping-items-list">
+                <!-- Dynamische Einträge -->
+              </div>
+            </div>
+          </div>
+
+          <div class="sidebar-column">
+            <div class="section-card">
+              <h3>➕ Eigener Artikel</h3>
+              <form id="form-new-shopping" class="form-stack">
+                <div class="form-group">
+                  <label for="shop-item-name">Produkt / Artikel</label>
+                  <input type="text" id="shop-item-name" required placeholder="z.B. Wischmopp-Ersatzbezug">
+                </div>
+                <div class="form-group">
+                  <label for="shop-item-cat">Kategorie</label>
+                  <select id="shop-item-cat">
+                    <option value="Reinigungsmittel">Reinigungsmittel</option>
+                    <option value="Garten & Pflanzen">Garten & Pflanzen</option>
+                    <option value="Geräte & Zubehör">Geräte & Zubehör</option>
+                    <option value="Allgemeiner Haushalt">Allgemeiner Haushalt</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-primary full-width">Auf Einkaufsliste setzen</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 5. FLECKEN- & PUTZTIPPS ================= -->
+      <section id="tab-stains" class="tab-pane">
+        <div class="section-card">
+          <div class="stains-search-bar">
+            <div>
+              <h2>💡 Flecken-Kompass & Ratgeber</h2>
+              <p class="subtitle">Soforthilfe bei hartnäckigen Flecken auf Teppich, Laminat, Fliesen & Polstern</p>
+            </div>
+            <div class="search-inputs">
+              <input type="text" id="stain-search-text" placeholder="Suche nach Fleck (z.B. Rotwein, Fett, Wachs, Kaffee)..." class="search-field">
+              <select id="stain-surface-filter" class="select-input">
+                <option value="all">Alle Untergründe</option>
+                <option value="Teppich">Teppich</option>
+                <option value="Laminat">Laminat / Holz</option>
+                <option value="Fliesen">Fliesen / Fugen</option>
+                <option value="Polster">Polster / Sofa</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="stains-grid" class="stains-catalog">
+            <!-- Wird dynamisch mit Ratgeberkarten befüllt -->
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Unsichtbarer Datei- / Kamera-Input für Panorama-Fotos -->
+  <input type="file" id="panorama-file-input" accept="image/*" style="display:none">
+
+  <!-- Modal: Panorama-Raumgenerator -->
+  <div id="modal-pano-generator" class="modal-backdrop" style="display:none;">
+    <div class="modal-card" style="max-width: 780px;">
+      <div class="modal-header">
+        <h3>📸 Panorama-Raumgenerator (Raumerkennung aus Foto)</h3>
+        <button id="btn-close-pano-modal" class="btn btn-sm btn-ghost">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="subtitle">Lade ein Weitwinkel- oder Panoramafoto deines Raumes hoch. Die App erkennt die Wandkanten, extrahiert die Bodenbeschaffenheit und erzeugt automatisch den passenden Raumumriss mit Fenstern!</p>
+        
+        <div class="pano-upload-bar">
+          <button id="btn-upload-pano" class="btn btn-sm btn-primary">📁 Eigenes Panorama-Foto wählen</button>
+          <button id="btn-load-sample-pano" class="btn btn-sm btn-secondary">⚡ Muster-Panorama (50m² Wohnküche) laden</button>
+          <span id="pano-file-name" class="muted-text">Kein Bild geladen</span>
+        </div>
+
+        <div class="pano-canvas-container">
+          <canvas id="panoCanvas" width="720" height="260"></canvas>
+          <div class="pano-overlay-hint">💡 Ziehe die 4 gelben Eckpunkte mit der Maus auf die Raumecken deines Fotos.</div>
+        </div>
+
+        <div class="pano-settings-grid">
+          <div class="form-group">
+            <label for="pano-room-name">Raumbezeichnung</label>
+            <input type="text" id="pano-room-name" value="Offene Wohnküche (aus Panorama)">
+          </div>
+          <div class="form-group">
+            <label for="pano-room-m2">Fläche (ca. m²)</label>
+            <input type="number" id="pano-room-m2" min="5" max="300" value="50">
+          </div>
+          <div class="form-group">
+            <label for="pano-room-surface">Bodenart</label>
+            <select id="pano-room-surface" class="select-input">
+              <option value="laminat" selected>Laminat / Holz</option>
+              <option value="fliesen">Fliesen</option>
+              <option value="teppich">Teppich</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pano-checkbox-row">
+          <label class="checkbox-label">
+            <input type="checkbox" id="pano-extract-texture" checked>
+            <span>📸 Original-Bodenbeschaffenheit direkt aus dem Foto ausschneiden und als Kachel-Textur zuweisen</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="pano-add-windows" checked>
+            <span>🪟 Erkannte Fensterfronten automatisch entlang der Wände platzieren</span>
+          </label>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btn-cancel-pano" class="btn btn-secondary">Abbrechen</button>
+          <button id="btn-generate-from-pano" class="btn btn-primary">✨ Raum in 2D & 3D erzeugen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Unsichtbarer Datei- / Kamera-Input für Oberflächen-Fotos -->
+  <input type="file" id="camera-texture-input" accept="image/*" style="display:none">
+
+  <!-- Modal: Kurzanleitung zum Zeichnen -->
+  <div id="modal-draw-help" class="modal-backdrop" style="display:none;">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3>✏️ Kurzanleitung: So zeichnest du dein Haus</h3>
+        <button id="btn-close-draw-help" class="btn btn-sm btn-ghost">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="help-step">
+          <div class="help-step-num">1</div>
+          <div class="help-step-text">
+            <strong>Neuen Raum aufziehen:</strong>
+            <p>Klicke oben auf <strong>"🔲 Raum aufziehen"</strong>. Klicke dann mit der Maus auf die weiße Fläche, halte die Maustaste gedrückt und ziehe den Raum auf (z. B. deinen 50 m² Wohnraum). Die Fläche in m² wird live angezeigt.</p>
+          </div>
+        </div>
+
+        <div class="help-step">
+          <div class="help-step-num">2</div>
+          <div class="help-step-text">
+            <strong>Wände einziehen & Räume trennen:</strong>
+            <p>Klicke oben auf <strong>"🧱 Wand einziehen"</strong>. Ziehe mit der Maus eine Trennwand zwischen Flur, Gäste-WC und Küche. Die Wand rastet automatisch gerade ein.</p>
+          </div>
+        </div>
+
+        <div class="help-step">
+          <div class="help-step-num">3</div>
+          <div class="help-step-text">
+            <strong>Größe (m²) & Umriss anpassen:</strong>
+            <p>Klicke auf <strong>"✋ Auswählen & Bewegen"</strong> und klicke dein Zimmer an. An den <strong>8 blauen Punkten</strong> kannst du jede Kante verziehen – oder im Menü rechts die m² exakt als Zahl eintippen.</p>
+          </div>
+        </div>
+
+        <div class="help-step">
+          <div class="help-step-num">4</div>
+          <div class="help-step-text">
+            <strong>Möbel, Fenster & Treppe einsetzen:</strong>
+            <p>Klicke links im <strong>Auswahlpool</strong> auf Couch, Esstisch, Fenster, Treppe oder Tür – das Objekt erscheint sofort im Raum und kann beliebig verschoben werden.</p>
+          </div>
+        </div>
+
+        <div class="help-step">
+          <div class="help-step-num">5</div>
+          <div class="help-step-text">
+            <strong>In 3D ansehen:</strong>
+            <p>Schalte oben auf <strong>"🕶️ 3D Haus-Ansicht"</strong>. Klicke auf <strong>"🏢 Gesamtes Haus"</strong>, um alle Etagen inklusive Treppenläufen und Möbeln dreidimensional zu betrachten!</p>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btn-got-draw-help" class="btn btn-primary full-width">Verstanden, los geht's!</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Quadratischer Foto-Zuschnitt für nahtlose Oberflächen-Kachelung -->
+  <div id="modal-texture-crop" class="modal-backdrop" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>📸 Foto-Oberfläche zuschneiden</h3>
+        <button id="btn-close-texture-modal" class="btn btn-sm btn-ghost">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="subtitle">Bewege und skaliere den quadratischen Ausschnitt deiner realen Fliese, deines Parketts, Teppichs oder Polsterstoffs. Dieser Bereich wird nahtlos gekachelt.</p>
+        <div class="crop-area">
+          <canvas id="cropCanvas" width="380" height="380"></canvas>
+        </div>
+        <div class="crop-controls">
+          <label><strong>Ausschnitt-Größe:</strong></label>
+          <input type="range" id="crop-zoom" min="50" max="350" value="180">
+          <span id="crop-zoom-label">180 px</span>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-texture" class="btn btn-secondary">Abbrechen</button>
+          <button id="btn-apply-texture" class="btn btn-primary">✨ Als Textur übernehmen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

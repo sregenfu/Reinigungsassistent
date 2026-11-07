@@ -1420,21 +1420,37 @@ function renderCropCanvas() {
 // ----------------------------------------------------
 
 // 1. Bodenbelagsmuster
-function drawSurfacePattern(ctx, surface, x, y, width, height, textureImg) {
+function drawSurfacePattern(ctx, surface, x, y, width, height, textureImg, textureScaleCm = 40) {
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, width, height);
   ctx.clip();
 
-  // Falls eine eigene Foto-Textur hinterlegt ist, diese nahtlos kacheln
+  // Falls eine eigene Foto-Textur hinterlegt ist, diese maßstabsgetreu kacheln
   if (textureImg) {
     const img = getCachedImage(textureImg);
-    if (img) {
+    if (img && img.naturalWidth > 0) {
       const pattern = ctx.createPattern(img, 'repeat');
-      ctx.fillStyle = pattern;
-      ctx.fillRect(x, y, width, height);
-      ctx.restore();
-      return;
+      if (pattern) {
+        // Umrechnung: Wie viele Pixel im Canvas entsprechen der realen Kachelgröße?
+        // PIXELS_PER_METER = 40px => 100cm = 40px => 1cm = 0.4px.
+        // Eine 40x40cm Fliese soll z.B. 16x16px groß sein.
+        const cm = parseFloat(textureScaleCm) || 40;
+        const targetTilePx = (cm / 100) * PIXELS_PER_METER;
+        const scaleFactor = targetTilePx / img.naturalWidth;
+
+        if (pattern.setTransform && window.DOMMatrix) {
+          const matrix = new DOMMatrix();
+          matrix.translateSelf(x, y);
+          matrix.scaleSelf(scaleFactor, scaleFactor);
+          pattern.setTransform(matrix);
+        }
+
+        ctx.fillStyle = pattern;
+        ctx.fillRect(x, y, width, height);
+        ctx.restore();
+        return;
+      }
     }
   }
 
@@ -2113,7 +2129,7 @@ function renderCanvas() {
 
   // 1. Zuerst Räume rendern (Hintergrund-Ebene)
   elements.filter(el => el.type === 'room').forEach(room => {
-    drawSurfacePattern(ctx, room.surface, room.x, room.y, room.width, room.height, room.textureImg);
+    drawSurfacePattern(ctx, room.surface, room.x, room.y, room.width, room.height, room.textureImg, room.textureScaleCm || 50);
 
     // Raum-Außenwände (Solide Mauerstärke)
     ctx.strokeStyle = '#1e293b';
@@ -2164,7 +2180,7 @@ function renderCanvas() {
     } else if (sub === 'fenster' || sub === 'fenster_gross') {
       drawArchitecturalWindow(ctx, f);
     } else if (sub === 'fliesen_zone') {
-      drawSurfacePattern(ctx, 'fliesen', f.x, f.y, f.width, f.height, f.textureImg);
+      drawSurfacePattern(ctx, 'fliesen', f.x, f.y, f.width, f.height, f.textureImg, f.textureScaleCm || 50);
       ctx.strokeStyle = '#94a3b8';
       ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 3]);
@@ -2174,7 +2190,7 @@ function renderCanvas() {
       ctx.font = 'bold 11px sans-serif';
       ctx.fillText('🍳 Fliesenbereich Küche', f.x + 10, f.y + 20);
     } else if (sub === 'teppich_insel') {
-      drawSurfacePattern(ctx, 'teppich', f.x, f.y, f.width, f.height, f.textureImg);
+      drawSurfacePattern(ctx, 'teppich', f.x, f.y, f.width, f.height, f.textureImg, f.textureScaleCm || 80);
       ctx.strokeStyle = '#94a3b8';
       ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 3]);
@@ -2238,6 +2254,7 @@ function renderCanvas() {
 // ELEMENT-INSPEKTOR MIT VARIABLEN M² & UMRISS & TEXTUREN
 // ----------------------------------------------------
 function getTextureControlHTML(el) {
+  const currentCm = el.textureScaleCm || 50;
   return `
     <div class="texture-control-box">
       <label style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:700;">
@@ -2252,6 +2269,22 @@ function getTextureControlHTML(el) {
           ${el.textureImg ? '<button id="btn-remove-texture" class="btn btn-sm btn-ghost" style="color:var(--danger); font-size:0.75rem; padding:2px;">✕ Foto entfernen</button>' : ''}
         </div>
       </div>
+
+      ${el.textureImg ? `
+        <div style="display:flex; flex-direction:column; gap:0.25rem; margin-top:0.35rem; background:#ffffff; padding:0.45rem; border-radius:6px; border:1px solid var(--border);">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-size:0.75rem; font-weight:700;">📏 Kachelgröße / Fliesenmaß:</label>
+            <span id="label-texture-scale-cm" style="font-size:0.78rem; font-weight:700; color:var(--primary);">${currentCm} cm</span>
+          </div>
+          <input type="range" id="input-texture-scale-cm" min="15" max="150" step="5" value="${currentCm}">
+          <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:var(--text-muted);">
+            <span>Klein (20 cm)</span>
+            <span>Mittel (50 cm)</span>
+            <span>Groß (100 cm)</span>
+          </div>
+        </div>
+      ` : ''}
+
       <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">
         Oder Vorlage wählen:
         <div class="texture-sample-row">
@@ -2277,8 +2310,22 @@ function bindTextureControlEvents(el) {
   if (btnRemove) {
     btnRemove.addEventListener('click', () => {
       delete el.textureImg;
+      delete el.textureScaleCm;
       saveData();
       updateInspector();
+      renderCanvas();
+      if (activeViewMode === '3d') update3DScene();
+    });
+  }
+
+  const sliderCm = document.getElementById('input-texture-scale-cm');
+  const labelCm = document.getElementById('label-texture-scale-cm');
+  if (sliderCm) {
+    sliderCm.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10);
+      el.textureScaleCm = val;
+      if (labelCm) labelCm.textContent = val + ' cm';
+      saveData();
       renderCanvas();
       if (activeViewMode === '3d') update3DScene();
     });
@@ -2288,6 +2335,7 @@ function bindTextureControlEvents(el) {
     chip.addEventListener('click', () => {
       const sampleType = chip.dataset.sample;
       el.textureImg = getPresetSampleTexture(sampleType);
+      el.textureScaleCm = sampleType === 'marmor' ? 60 : sampleType === 'eiche' ? 40 : 50;
       saveData();
       updateInspector();
       renderCanvas();
@@ -2877,7 +2925,13 @@ function update3DScene() {
         const tex = new THREE.TextureLoader().load(room.textureImg);
         tex.wrapS = THREE.RepeatWrapping;
         tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(Math.max(1, w / 1.5), Math.max(1, d / 1.5));
+        // Reale Kachelgröße in 3D:
+        // SCALE_3D = 0.05, 40px = 1m => 1 Einheit in 3D = 0.5m = 50cm
+        const cm = parseFloat(room.textureScaleCm) || 50;
+        const tileIn3DUnits = (cm / 100) / 0.5; // z.B. 50cm = 1.0 3D-Einheit, 30cm = 0.6 Einheiten
+        const repeatX = Math.max(1, w / Math.max(0.2, tileIn3DUnits));
+        const repeatZ = Math.max(1, d / Math.max(0.2, tileIn3DUnits));
+        tex.repeat.set(repeatX, repeatZ);
         floorMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 });
       } else {
         let floorColor = 0xfef3c7; // Laminat
@@ -3102,7 +3156,9 @@ function update3DScene() {
           const tex = new THREE.TextureLoader().load(f.textureImg);
           tex.wrapS = THREE.RepeatWrapping;
           tex.wrapT = THREE.RepeatWrapping;
-          tex.repeat.set(Math.max(1, w / 1.2), Math.max(1, d / 1.2));
+          const cm = parseFloat(f.textureScaleCm) || (isRug ? 80 : 50);
+          const tileIn3DUnits = (cm / 100) / 0.5;
+          tex.repeat.set(Math.max(1, w / Math.max(0.2, tileIn3DUnits)), Math.max(1, d / Math.max(0.2, tileIn3DUnits)));
           rugMat = new THREE.MeshStandardMaterial({ map: tex, roughness: isRug ? 0.9 : 0.3 });
         } else {
           rugMat = new THREE.MeshStandardMaterial({ color: isRug ? 0xd1d5db : 0xf1f5f9, roughness: isRug ? 0.9 : 0.3 });

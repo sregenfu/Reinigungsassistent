@@ -14,6 +14,7 @@ const SAMPLE_DATA = {
       floor: 'EG',
       room: 'Wohn-Ess-Bereich',
       surface: 'Laminat',
+      icon: '🧹',
       intervalDays: 3,
       lastDone: new Date(Date.now() - 4 * 86400000).toISOString(),
       notes: 'Laminat: Nur saugen oder nebelfeucht wischen, kein Wasser stehen lassen!'
@@ -24,6 +25,7 @@ const SAMPLE_DATA = {
       floor: 'EG',
       room: 'Küche',
       surface: 'Fliesen',
+      icon: '🍳',
       intervalDays: 4,
       lastDone: new Date(Date.now() - 5 * 86400000).toISOString(),
       notes: 'Fettlösenden Allzweckreiniger verwenden'
@@ -34,6 +36,7 @@ const SAMPLE_DATA = {
       floor: 'EG',
       room: 'Gäste-WC',
       surface: 'Fliesen',
+      icon: '🚽',
       intervalDays: 4,
       lastDone: new Date(Date.now() - 4 * 86400000).toISOString(),
       notes: 'Sanitärreiniger & separate Lappen für WC und Waschtisch'
@@ -44,6 +47,7 @@ const SAMPLE_DATA = {
       floor: 'Treppe',
       room: 'Treppenhaus (3 Etagen)',
       surface: 'Holz',
+      icon: '🪜',
       intervalDays: 7,
       lastDone: new Date(Date.now() - 8 * 86400000).toISOString(),
       notes: 'Von oben (2. OG) nach unten saugen! Geländer mit nebelfeuchtem Tuch entstauben.'
@@ -54,6 +58,7 @@ const SAMPLE_DATA = {
       floor: 'EG',
       room: 'Wohnzimmer',
       surface: 'Teppich',
+      icon: '🛋️',
       intervalDays: 4,
       lastDone: new Date(Date.now() - 2 * 86400000).toISOString(),
       notes: 'Bürstenaufsatz verwenden, Ränder gründlich absaugen'
@@ -64,6 +69,7 @@ const SAMPLE_DATA = {
       floor: 'EG',
       room: 'Wohnküche',
       surface: 'Glas',
+      icon: '🪟',
       intervalDays: 30,
       lastDone: new Date(Date.now() - 28 * 86400000).toISOString(),
       notes: 'Fensterabzieher + Mikrofasertuch für streifenfreien Glanz'
@@ -74,6 +80,7 @@ const SAMPLE_DATA = {
       floor: 'EG',
       room: 'Flur',
       surface: 'Fliesen',
+      icon: '🚪',
       intervalDays: 5,
       lastDone: new Date(Date.now() - 1 * 86400000).toISOString(),
       notes: 'Schmutzfangmatte ausschütteln und gründlich saugen'
@@ -84,6 +91,7 @@ const SAMPLE_DATA = {
       floor: '1.OG',
       room: 'Schlaf- & Arbeitszimmer',
       surface: 'Laminat',
+      icon: '🧹',
       intervalDays: 7,
       lastDone: new Date(Date.now() - 6 * 86400000).toISOString(),
       notes: 'Stoßlüften und Laminatböden nebelfeucht pflegen'
@@ -400,6 +408,17 @@ function initStorage() {
       if (!appData.tasks) appData.tasks = SAMPLE_DATA.tasks;
       if (!appData.plants) appData.plants = SAMPLE_DATA.plants;
       if (!appData.shopping) appData.shopping = SAMPLE_DATA.shopping;
+
+      // Sicherstellen, dass jede Aufgabe ein passendes Symbol besitzt (und Flur-Fehlzuordnung korrigieren)
+      if (appData.tasks) {
+        appData.tasks.forEach(t => {
+          if (!t.icon) {
+            t.icon = getTaskSymbol(t);
+          } else if ((t.id === 't-7' || (t.title && t.title.includes('Eingangsflur'))) && t.icon === '🚽') {
+            t.icon = '🚪';
+          }
+        });
+      }
     } catch (e) {
       console.error('Fehler beim Laden aus LocalStorage:', e);
       appData = JSON.parse(JSON.stringify(SAMPLE_DATA));
@@ -563,23 +582,44 @@ function calculateNextDueDate(lastDoneDate, intervalDays) {
   return d.toISOString();
 }
 
-// Ermittelt ein passendes kleines Symbol für eine Putzaufgabe im Kalender
+// Ermittelt ein passendes kleines Symbol für eine Putzaufgabe im Kalender & Plan
 function getTaskSymbol(task) {
-  const str = `${task.title || ''} ${task.room || ''} ${task.surface || ''}`.toLowerCase();
-  if (str.includes('küche') || str.includes('koch') || str.includes('herd') || str.includes('spül')) return '🍳';
-  if (str.includes('wc') || str.includes('toilette') || str.includes('klo')) return '🚽';
-  if (str.includes('bad') || str.includes('dusch') || str.includes('wanne') || str.includes('waschtisch') || str.includes('sanitär')) return '🛁';
-  if (str.includes('fenster') || str.includes('glas') || str.includes('panorama')) return '🪟';
-  if (str.includes('treppe') || str.includes('stuf') || str.includes('geländer')) return '🪜';
-  if (str.includes('pflanz') || str.includes('gieß') || str.includes('monstera') || str.includes('ficus') || str.includes('palme')) return '🪴';
-  if (str.includes('bett') || str.includes('schlaf') || str.includes('matratze')) return '🛏️';
-  if (str.includes('couch') || str.includes('sofa') || str.includes('wohnzimmer')) return '🛋️';
-  if (str.includes('saugen') || str.includes('staub') || str.includes('sauger') || str.includes('fegen')) return '🧹';
-  if (str.includes('wisch') || str.includes('feucht') || str.includes('putz') || str.includes('mopp')) return '🪣';
-  if (str.includes('wäsche') || str.includes('waschmaschine') || str.includes('bügel')) return '🧺';
-  if (str.includes('einkauf') || str.includes('kauf')) return '🛒';
-  if (str.includes('müll') || str.includes('abfall') || str.includes('tonne')) return '🗑️';
-  return '🪣'; // Standard: Putzeimer
+  if (task && task.icon) return task.icon;
+  const str = ` ${task ? (task.title || '') : ''} ${task ? (task.room || '') : ''} ${task ? (task.surface || '') : ''} `.toLowerCase();
+
+  // Flur & Eingangsbereich
+  if (/\b(flur|diele|eingang|garderobe|vorraum|windfang)\b/.test(str)) return '🚪';
+  // Küche & Kochen
+  if (/\b(küche|koch|herd|backofen|kühlschrank|spül|geschirr)\b/.test(str)) return '🍳';
+  // Toilette / WC (Wortgrenzen gegen false positives wie "klopfen"!)
+  if (/\b(wc|toilette|toiletten|klo|gäste-wc)\b/.test(str)) return '🚽';
+  // Bad & Wellness
+  if (/\b(bad|badezimmer|dusch|dusche|wanne|badewanne|waschtisch|sanitär|armatur)\b/.test(str)) return '🛁';
+  // Fenster & Glas
+  if (/\b(fenster|glas|scheibe|panorama|spiegel)\b/.test(str)) return '🪟';
+  // Treppe & Stufen
+  if (/\b(treppe|stufen|stufe|stuf|geländer|treppenhaus)\b/.test(str)) return '🪜';
+  // Pflanzen
+  if (/\b(pflanz|pflanze|pflanzen|gieß|monstera|ficus|palme|blume|drachenpalme|elefantenfuß)\b/.test(str)) return '🪴';
+  // Schlafzimmer & Bett
+  if (/\b(bett|schlafzimmer|schlaf|matratze|kissen|bettwäsche)\b/.test(str)) return '🛏️';
+  // Wohnzimmer & Couch
+  if (/\b(couch|sofa|wohnzimmer|sessel|wohnlandschaft)\b/.test(str)) return '🛋️';
+  // Saugen & Kehren
+  if (/\b(saugen|staub|sauger|fegen|kehr)\b/.test(str)) return '🧹';
+  // Wischen & Putzen
+  if (/\b(wisch|wischen|feucht|mopp|aufwasch|putzen)\b/.test(str)) return '🪣';
+  // Wäsche
+  if (/\b(wäsche|waschmaschine|bügel|bügeln)\b/.test(str)) return '🧺';
+  // Einkauf
+  if (/\b(einkauf|kauf|besorg)\b/.test(str)) return '🛒';
+  // Müll
+  if (/\b(müll|abfall|tonne|altpapier)\b/.test(str)) return '🗑️';
+  // Büro
+  if (/\b(schreibtisch|computer|pc|arbeitszimmer|büro)\b/.test(str)) return '💻';
+  // Schränke & Ordnung
+  if (/\b(schrank|regal|ordnung|ausmist)\b/.test(str)) return '📦';
+  return '🪣'; // Standard
 }
 
 function renderTasks() {
@@ -633,7 +673,7 @@ function renderTasks() {
       <div class="task-left">
         <input type="checkbox" class="task-checkbox" title="Als heute erledigt markieren" data-id="${task.id}">
         <div class="task-details">
-          <span class="task-name">${task.title}</span>
+          <span class="task-name">${getTaskSymbol(task)} ${task.title}</span>
           <div class="task-tags">
             <span class="tag tag-floor">📍 ${task.floor} • ${task.room || 'Allgemein'}</span>
             <span class="tag tag-surface">🧹 ${task.surface || 'Boden'}</span>
@@ -879,6 +919,40 @@ function showCalendarDayDetails(dateStr) {
   }
 }
 
+function setupIconPicker(pickerId, hiddenInputId) {
+  const container = document.getElementById(pickerId);
+  const hiddenInput = document.getElementById(hiddenInputId);
+  if (!container || !hiddenInput) return;
+
+  container.querySelectorAll('.icon-chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      e.preventDefault();
+      container.querySelectorAll('.icon-chip').forEach(b => b.classList.remove('active'));
+      chip.classList.add('active');
+      hiddenInput.value = chip.dataset.icon;
+      hiddenInput.dataset.manual = 'true';
+    });
+  });
+}
+
+function setPickerIcon(pickerId, hiddenInputId, icon) {
+  const container = document.getElementById(pickerId);
+  const hiddenInput = document.getElementById(hiddenInputId);
+  if (!container || !hiddenInput) return;
+  const targetIcon = icon || '🧹';
+  hiddenInput.value = targetIcon;
+  let matched = false;
+  container.querySelectorAll('.icon-chip').forEach(b => {
+    const isMatch = (b.dataset.icon === targetIcon);
+    b.classList.toggle('active', isMatch);
+    if (isMatch) matched = true;
+  });
+  if (!matched) {
+    const first = container.querySelector('.icon-chip');
+    if (first) first.classList.add('active');
+  }
+}
+
 function openEditTaskModal(task) {
   const modal = document.getElementById('modal-edit-task');
   if (!modal) return;
@@ -890,6 +964,9 @@ function openEditTaskModal(task) {
   document.getElementById('edit-task-interval').value = task.intervalDays;
   document.getElementById('edit-task-notes').value = task.notes || '';
 
+  const taskIcon = task.icon || getTaskSymbol(task);
+  setPickerIcon('edit-task-icon-picker', 'edit-task-icon', taskIcon);
+
   const nextDue = calculateNextDueDate(task.lastDone, task.intervalDays).slice(0, 10);
   document.getElementById('edit-task-date').value = nextDue;
 
@@ -899,6 +976,29 @@ function openEditTaskModal(task) {
 function setupTaskForm() {
   const form = document.getElementById('form-new-task');
   const floorFilter = document.getElementById('filter-floor-task');
+
+  // Icon Pickers initialisieren
+  setupIconPicker('new-task-icon-picker', 'task-icon');
+  setupIconPicker('edit-task-icon-picker', 'edit-task-icon');
+
+  const updateNewTaskAutoIcon = () => {
+    const hidden = document.getElementById('task-icon');
+    if (hidden && hidden.dataset.manual !== 'true') {
+      const title = document.getElementById('task-title').value;
+      const room = document.getElementById('task-room').value;
+      const surface = document.getElementById('task-surface').value;
+      const detected = getTaskSymbol({ title, room, surface });
+      setPickerIcon('new-task-icon-picker', 'task-icon', detected);
+      hidden.dataset.manual = 'false';
+    }
+  };
+
+  const titleInput = document.getElementById('task-title');
+  const roomInput = document.getElementById('task-room');
+  const surfaceInput = document.getElementById('task-surface');
+  if (titleInput) titleInput.addEventListener('input', updateNewTaskAutoIcon);
+  if (roomInput) roomInput.addEventListener('input', updateNewTaskAutoIcon);
+  if (surfaceInput) surfaceInput.addEventListener('change', updateNewTaskAutoIcon);
 
   // Standard-Datum für neue Aufgaben = Heute
   const taskDateInput = document.getElementById('task-date');
@@ -953,6 +1053,7 @@ function setupTaskForm() {
       task.floor = document.getElementById('edit-task-floor').value;
       task.room = document.getElementById('edit-task-room').value.trim() || 'Allgemein';
       task.surface = document.getElementById('edit-task-surface').value;
+      task.icon = document.getElementById('edit-task-icon').value || getTaskSymbol(task);
       task.intervalDays = parseInt(document.getElementById('edit-task-interval').value, 10) || 7;
       task.notes = document.getElementById('edit-task-notes').value.trim();
 
@@ -978,6 +1079,7 @@ function setupTaskForm() {
     const floor = document.getElementById('task-floor').value;
     const room = document.getElementById('task-room').value.trim() || 'Allgemein';
     const surface = document.getElementById('task-surface').value;
+    const icon = document.getElementById('task-icon').value || getTaskSymbol({ title, room, surface });
     const intervalDays = parseInt(document.getElementById('task-interval').value, 10) || 7;
     const notes = document.getElementById('task-notes').value.trim();
     const taskDateStr = (document.getElementById('task-date') || {}).value;
@@ -995,6 +1097,7 @@ function setupTaskForm() {
       floor,
       room,
       surface,
+      icon,
       intervalDays,
       lastDone,
       notes
@@ -1005,7 +1108,11 @@ function setupTaskForm() {
     renderTasks();
     form.reset();
 
-    // Reset date input back to today
+    // Reset Icon Picker & Date
+    setPickerIcon('new-task-icon-picker', 'task-icon', '🧹');
+    const hidden = document.getElementById('task-icon');
+    if (hidden) hidden.dataset.manual = 'false';
+
     if (taskDateInput) {
       const today = new Date();
       taskDateInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;

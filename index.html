@@ -122,6 +122,31 @@
                   <input type="text" id="task-title" required placeholder="z.B. Offene Treppe saugen & Stufen abwischen">
                 </div>
 
+                <div class="form-group">
+                  <label>Symbol / Icon auswählen</label>
+                  <div class="icon-picker-grid" id="new-task-icon-picker">
+                    <button type="button" class="icon-chip active" data-icon="🧹" title="Saugen / Kehren">🧹</button>
+                    <button type="button" class="icon-chip" data-icon="🪣" title="Wischen / Putzeimer">🪣</button>
+                    <button type="button" class="icon-chip" data-icon="🚪" title="Flur / Eingang / Türen">🚪</button>
+                    <button type="button" class="icon-chip" data-icon="🍳" title="Küche / Herd / Kochen">🍳</button>
+                    <button type="button" class="icon-chip" data-icon="🚽" title="Toilette / WC">🚽</button>
+                    <button type="button" class="icon-chip" data-icon="🛁" title="Bad / Dusche / Wanne">🛁</button>
+                    <button type="button" class="icon-chip" data-icon="🛋️" title="Wohnzimmer / Sofa">🛋️</button>
+                    <button type="button" class="icon-chip" data-icon="🛏️" title="Schlafzimmer / Bett">🛏️</button>
+                    <button type="button" class="icon-chip" data-icon="🪟" title="Fenster / Glas">🪟</button>
+                    <button type="button" class="icon-chip" data-icon="🪜" title="Treppe / Geländer">🪜</button>
+                    <button type="button" class="icon-chip" data-icon="🪴" title="Pflanzen gießen & pflegen">🪴</button>
+                    <button type="button" class="icon-chip" data-icon="🧺" title="Wäsche waschen / bügeln">🧺</button>
+                    <button type="button" class="icon-chip" data-icon="🗑️" title="Müll / Abfall">🗑️</button>
+                    <button type="button" class="icon-chip" data-icon="🧽" title="Spülen / Schwamm">🧽</button>
+                    <button type="button" class="icon-chip" data-icon="💻" title="Büro / Schreibtisch">💻</button>
+                    <button type="button" class="icon-chip" data-icon="🛒" title="Einkauf / Vorräte">🛒</button>
+                    <button type="button" class="icon-chip" data-icon="📦" title="Ordnung / Ausmisten">📦</button>
+                    <button type="button" class="icon-chip" data-icon="✨" title="Glanz / Grundreinigung">✨</button>
+                  </div>
+                  <input type="hidden" id="task-icon" value="🧹">
+                </div>
+
                 <div class="form-row">
                   <div class="form-group">
                     <label for="task-floor">Etage</label>
@@ -843,6 +868,30 @@
           <div class="form-group">
             <label for="edit-task-title">Titel / Tätigkeit</label>
             <input type="text" id="edit-task-title" required>
+          </div>
+          <div class="form-group">
+            <label>Symbol / Icon auswählen</label>
+            <div class="icon-picker-grid" id="edit-task-icon-picker">
+              <button type="button" class="icon-chip active" data-icon="🧹" title="Saugen / Kehren">🧹</button>
+              <button type="button" class="icon-chip" data-icon="🪣" title="Wischen / Putzeimer">🪣</button>
+              <button type="button" class="icon-chip" data-icon="🚪" title="Flur / Eingang / Türen">🚪</button>
+              <button type="button" class="icon-chip" data-icon="🍳" title="Küche / Herd / Kochen">🍳</button>
+              <button type="button" class="icon-chip" data-icon="🚽" title="Toilette / WC">🚽</button>
+              <button type="button" class="icon-chip" data-icon="🛁" title="Bad / Dusche / Wanne">🛁</button>
+              <button type="button" class="icon-chip" data-icon="🛋️" title="Wohnzimmer / Sofa">🛋️</button>
+              <button type="button" class="icon-chip" data-icon="🛏️" title="Schlafzimmer / Bett">🛏️</button>
+              <button type="button" class="icon-chip" data-icon="🪟" title="Fenster / Glas">🪟</button>
+              <button type="button" class="icon-chip" data-icon="🪜" title="Treppe / Geländer">🪜</button>
+              <button type="button" class="icon-chip" data-icon="🪴" title="Pflanzen gießen & pflegen">🪴</button>
+              <button type="button" class="icon-chip" data-icon="🧺" title="Wäsche waschen / bügeln">🧺</button>
+              <button type="button" class="icon-chip" data-icon="🗑️" title="Müll / Abfall">🗑️</button>
+              <button type="button" class="icon-chip" data-icon="🧽" title="Spülen / Schwamm">🧽</button>
+              <button type="button" class="icon-chip" data-icon="💻" title="Büro / Schreibtisch">💻</button>
+              <button type="button" class="icon-chip" data-icon="🛒" title="Einkauf / Vorräte">🛒</button>
+              <button type="button" class="icon-chip" data-icon="📦" title="Ordnung / Ausmisten">📦</button>
+              <button type="button" class="icon-chip" data-icon="✨" title="Glanz / Grundreinigung">✨</button>
+            </div>
+            <input type="hidden" id="edit-task-icon" value="🧹">
           </div>
           <div class="form-row">
             <div class="form-group">
